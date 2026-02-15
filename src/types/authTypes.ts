@@ -1,3 +1,5 @@
+import type { TrainerRegisterInput, TrainerRegisterResponse } from './trainerTypes';
+
 // Auth API Response Types
 export interface LoginResponse {
   tokens: {
@@ -26,6 +28,7 @@ export interface User {
   username: string;
   business_name?: string;
   profile_image?: string;
+  role?: 'client' | 'trainer';
   // Add other user fields as needed
 }
 
@@ -47,6 +50,7 @@ export interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResponse>;
   googleLogin: (idToken: string) => Promise<GoogleLoginResponse>;
   register: (data: RegisterInput) => Promise<RegisterResponse>;
+  registerTrainer: (data: TrainerRegisterInput) => Promise<TrainerRegisterResponse>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ message: string }>;
   verifyEmail: (email: string, code: string) => Promise<{ message: string }>;

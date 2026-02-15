@@ -141,7 +141,11 @@ export default function LoginPage() {
                     keyboardShouldPersistTaps="handled"
                 >
                     <View className="flex-1 px-6 justify-center">
-                        <TouchableOpacity onPress={() => resetOnboarding()}>
+                        <TouchableOpacity onPress={async () => {
+                            await resetOnboarding();
+                            router.replace('/onboarding');
+                        }}
+                        >
                             <Text className="text-center text-blue-600 mb-4">Reset Onboarding (Dev Only)</Text>
                         </TouchableOpacity>
                         <View className="mb-10">

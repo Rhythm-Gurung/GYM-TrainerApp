@@ -17,6 +17,12 @@ export const API_CONFIG = {
             CHECK_EMAIL: '/api/system/auth/check-email-exists/',
             UPDATE_PROFILE: '/api/system/auth/update-profile/',
         },
+        TRAINER: {
+            // REGISTER: '/api/trainer/register/',
+            REGISTER: '/api/system/auth/register/',
+            UPDATE_PROFILE: '/api/trainer/update-profile/',
+            GET_PROFILE: '/api/trainer/profile/',
+        },
         TOKEN: {
             REFRESH: '/api/token/refresh/',
         },

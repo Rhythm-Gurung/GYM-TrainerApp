@@ -81,16 +81,16 @@ function OnboardingScreen() {
                 animated: true,
             });
         } else {
-            // Last slide reached - complete onboarding and navigate to login
+            // Last slide reached - complete onboarding and navigate to role selection
             await completeOnboarding();
-            router.replace("/(auth)/login");
+            router.replace("/(auth)/roleSelection");
         }
     };
 
-    // Skip onboarding and go directly to login
+    // Skip onboarding and go directly to role selection
     const handleSkip = async () => {
         await completeOnboarding();
-        router.replace("/(auth)/login");
+        router.replace("/(auth)/roleSelection");
     };
 
     // Transition from initial logo screen to carousel

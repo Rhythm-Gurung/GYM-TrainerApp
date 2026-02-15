@@ -158,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
 
     const registerTrainer = useCallback(
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
         async (_data: TrainerRegisterInput): Promise<TrainerRegisterResponse> =>
             // Placeholder for trainer registration
             // This will be implemented when the backend endpoint is ready

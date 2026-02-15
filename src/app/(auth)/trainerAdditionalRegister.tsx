@@ -54,6 +54,7 @@ export default function TrainerAdditionalRegisterPage() {
     },
   });
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const expertiseCategories = watch('expertiseCategories');
   const sessionType = watch('sessionType');
 

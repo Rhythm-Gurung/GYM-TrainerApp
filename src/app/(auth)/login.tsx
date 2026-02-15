@@ -57,6 +57,7 @@ export default function LoginPage() {
     });
 
     // Watch the email field for changes
+    // eslint-disable-next-line react-hooks/incompatible-library
     const currentEmail = watch('email');
 
     useEffect(() => {

@@ -9,12 +9,15 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface User {
     id: string;
@@ -190,9 +193,9 @@ export default function RolesAccess() {
                     {/* Header */}
                     <View className="flex-row items-center mb-6">
                         <TouchableOpacity onPress={handleBack} className="mr-4">
-                            <Ionicons name="arrow-back" size={24} color="#000" />
+                            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                         </TouchableOpacity>
-                        <Text className="text-2xl font-bold text-gray-900">
+                        <Text className="text-title font-bold text-foreground">
                             Roles & Access
                         </Text>
                     </View>
@@ -207,14 +210,14 @@ export default function RolesAccess() {
                                     className="w-32 h-32 rounded-full"
                                 />
                             ) : (
-                                <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                    <Ionicons name="person" size={64} color="#9CA3AF" />
+                                <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                    <Ionicons name="person" size={64} color={colors.textSubtle} />
                                 </View>
                             )}
                         </View>
 
                         {/* Business Name */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-6">
+                        <Text className="text-title font-bold text-foreground mb-6">
                             {user?.business_name || 'Vintuna Stores'}
                         </Text>
                     </View>
@@ -223,10 +226,10 @@ export default function RolesAccess() {
                     <View className="mb-6">
                         <TouchableOpacity
                             onPress={() => setShowUserDropdown(!showUserDropdown)}
-                            className="bg-white border border-gray-200 rounded-lg px-4 py-4 flex-row items-center justify-between"
+                            className="bg-white border border-surface-border rounded-lg px-4 py-4 flex-row items-center justify-between"
                         >
                             <Text
-                                className={`text-base ${selectedUser ? 'text-gray-900' : 'text-gray-400'
+                                className={`text-base ${selectedUser ? 'text-foreground' : 'text-foreground-5'
                                     }`}
                             >
                                 {selectedUser?.name || 'Select User'}
@@ -234,23 +237,23 @@ export default function RolesAccess() {
                             <Ionicons
                                 name={showUserDropdown ? 'chevron-up' : 'chevron-down'}
                                 size={20}
-                                color="#9CA3AF"
+                                color={colors.textSubtle}
                             />
                         </TouchableOpacity>
 
                         {/* User Dropdown List */}
                         {showUserDropdown && (
-                            <View className="bg-white border border-gray-200 rounded-lg mt-2">
+                            <View className="bg-white border border-surface-border rounded-lg mt-2">
                                 {users.map((userItem, index) => (
                                     <TouchableOpacity
                                         key={userItem.id}
                                         onPress={() => handleUserSelect(userItem)}
                                         className={`px-4 py-3 ${index !== users.length - 1
-                                            ? 'border-b border-gray-100'
+                                            ? 'border-b border-surface'
                                             : ''
                                             }`}
                                     >
-                                        <Text className="text-base text-gray-900">
+                                        <Text className="text-base text-foreground">
                                             {userItem.name}
                                         </Text>
                                     </TouchableOpacity>
@@ -263,10 +266,10 @@ export default function RolesAccess() {
                     <View className="mb-6">
                         <TouchableOpacity
                             onPress={() => setShowFeatureDropdown(!showFeatureDropdown)}
-                            className="bg-white border border-gray-200 rounded-lg px-4 py-4 flex-row items-center justify-between"
+                            className="bg-white border border-surface-border rounded-lg px-4 py-4 flex-row items-center justify-between"
                         >
                             <Text
-                                className={`text-base ${selectedFeature ? 'text-gray-900' : 'text-gray-400'
+                                className={`text-base ${selectedFeature ? 'text-foreground' : 'text-foreground-5'
                                     }`}
                             >
                                 {selectedFeature?.name || 'Select Feature'}
@@ -274,23 +277,23 @@ export default function RolesAccess() {
                             <Ionicons
                                 name={showFeatureDropdown ? 'chevron-up' : 'chevron-down'}
                                 size={20}
-                                color="#9CA3AF"
+                                color={colors.textSubtle}
                             />
                         </TouchableOpacity>
 
                         {/* Feature Dropdown List */}
                         {showFeatureDropdown && (
-                            <View className="bg-white border border-gray-200 rounded-lg mt-2">
+                            <View className="bg-white border border-surface-border rounded-lg mt-2">
                                 {features.map((feature, index) => (
                                     <TouchableOpacity
                                         key={feature.id}
                                         onPress={() => handleFeatureSelect(feature)}
                                         className={`px-4 py-3 ${index !== features.length - 1
-                                            ? 'border-b border-gray-100'
+                                            ? 'border-b border-surface'
                                             : ''
                                             }`}
                                     >
-                                        <Text className="text-base text-gray-900">
+                                        <Text className="text-base text-foreground">
                                             {feature.name}
                                         </Text>
                                     </TouchableOpacity>
@@ -302,27 +305,27 @@ export default function RolesAccess() {
                     {/* Permissions Section */}
                     {selectedFeature && featurePermissions[selectedFeature.id] && (
                         <View className="mb-6">
-                            <Text className="text-lg font-semibold text-gray-900 mb-3">
+                            <Text className="text-lead font-semibold text-foreground mb-3">
                                 {selectedFeature.name}
                             </Text>
-                            <View className="bg-white border border-gray-200 rounded-lg">
+                            <View className="bg-white border border-surface-border rounded-lg">
                                 {featurePermissions[selectedFeature.id].map((permission, index) => (
                                     <View
                                         key={permission.id}
                                         className={`flex-row items-center justify-between px-4 py-4 ${index !== featurePermissions[selectedFeature.id].length - 1
-                                                ? 'border-b border-gray-100'
+                                                ? 'border-b border-surface'
                                                 : ''
                                             }`}
                                     >
-                                        <Text className="text-base text-gray-900 flex-1">
+                                        <Text className="text-base text-foreground flex-1">
                                             {permission.label}
                                         </Text>
                                         <Switch
                                             value={selectedPermissions.has(permission.id)}
                                             onValueChange={() => handlePermissionToggle(permission.id)}
-                                            trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-                                            thumbColor={selectedPermissions.has(permission.id) ? '#3B82F6' : '#F3F4F6'}
-                                            ios_backgroundColor="#D1D5DB"
+                                            trackColor={{ false: colors.neutral, true: colors.actionTrack }}
+                                            thumbColor={value ? colors.action : colors.surface}
+                                            ios_backgroundColor={colors.neutral}
                                         />
                                     </View>
                                 ))}
@@ -335,7 +338,7 @@ export default function RolesAccess() {
                         <View className="mt-4">
                             <TouchableOpacity
                                 onPress={handleAssignAccess}
-                                className="bg-blue-500 py-4 rounded-lg items-center mb-4"
+                                className="bg-action py-4 rounded-lg items-center mb-4"
                             >
                                 <Text className="text-white text-base font-semibold">
                                     Save
@@ -344,9 +347,9 @@ export default function RolesAccess() {
 
                             <TouchableOpacity
                                 onPress={handleCancel}
-                                className="border-2 border-orange-500 py-4 rounded-lg items-center"
+                                className="border-2 border-cancel py-4 rounded-lg items-center"
                             >
-                                <Text className="text-orange-500 text-base font-semibold">
+                                <Text className="text-cancel text-base font-semibold">
                                     Cancel
                                 </Text>
                             </TouchableOpacity>

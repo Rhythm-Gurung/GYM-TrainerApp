@@ -3,15 +3,17 @@ import { isTablet } from '@/constants/responsive';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, Text, View } from 'react-native';
+
+import { Button } from '@/components/ui/formComponent';
+import iconImage from '../../../assets/images/icon.webp';
+
+
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import {
   heightPercentageToDP as hp,
   widthPercentageToDP as wp,
 } from 'react-native-responsive-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
-
-import { Button } from '@/components/ui/formComponent';
-import iconImage from '../../../assets/images/icon.webp';
 
 type UserRole = 'client' | 'trainer' | null;
 
@@ -36,7 +38,7 @@ export default function RoleSelectionScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#FBFBFB]" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
       <Animated.View
         entering={FadeIn.duration(600)}
         className="flex-1"
@@ -63,13 +65,13 @@ export default function RoleSelectionScreen() {
           style={{ marginBottom: hp('2%') }}
         >
           <Text
-            className="text-gray-900 font-bold text-center"
+            className="text-foreground font-bold text-center"
             style={{ fontSize: isTablet ? wp('4%') : wp('6.5%') }}
           >
             Choose Your Role
           </Text>
           <Text
-            className="text-gray-600 text-center mt-2"
+            className="text-foreground-3 text-center mt-2"
             style={{ fontSize: isTablet ? wp('2.5%') : wp('4%') }}
           >
             Select how you want to continue with SETu
@@ -116,13 +118,13 @@ export default function RoleSelectionScreen() {
 
           {/* Back to Login */}
           <Text
-            className="text-gray-600 text-center"
+            className="text-foreground-3 text-center"
             style={{ fontSize: isTablet ? wp('2.3%') : wp('3.8%') }}
           >
             Already have an account?
 {' '}
             <Text
-              className="text-[#73C2FB] font-medium"
+              className="text-primary-btn font-medium"
               onPress={handleBackToLogin}
             >
               Sign In

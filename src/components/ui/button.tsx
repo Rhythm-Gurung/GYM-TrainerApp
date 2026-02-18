@@ -30,7 +30,7 @@
 //             disabled={isDisabled}
 //             activeOpacity={0.8}
 //             accessibilityRole="button"
-//             className={`
+//             className={
 //         w-full
 //         h-12
 //         rounded-lg

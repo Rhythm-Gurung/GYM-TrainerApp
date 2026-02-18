@@ -11,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FileUploadField } from '@/components/auth/FileUploadField';
 import { Button, InputField } from '@/components/ui/formComponent';
@@ -21,6 +20,9 @@ import {
   trainerAdditionalDetailsSchema,
 } from '@/schemas/trainer.schemas';
 import { EXPERTISE_CATEGORIES } from '@/types/trainerTypes';
+
+
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TrainerAdditionalRegisterPage() {
   const router = useRouter();
@@ -142,7 +144,7 @@ export default function TrainerAdditionalRegisterPage() {
         >
           <View className="flex-1 px-6 justify-center py-6">
             <View className="mb-6">
-              <Text className="text-center text-3xl font-bold text-gray-900 mb-4">
+              <Text className="text-center text-heading font-bold text-foreground mb-4">
                 Trainer Details
               </Text>
               <Text className="text-center text-gray-light text-base mb-4">
@@ -178,12 +180,12 @@ export default function TrainerAdditionalRegisterPage() {
                   name="bio"
                   render={() => (
                     <View>
-                      <Text className="text-gray-700 font-medium mb-2">Bio</Text>
+                      <Text className="text-foreground-2 font-medium mb-2">Bio</Text>
                       <View
-                        className={`border rounded-lg p-3 bg-white ${errors.bio ? 'border-red-400' : 'border-gray-200'
+                        className={`border rounded-lg p-3 bg-white ${errors.bio ? 'border-error-light' : 'border-surface-border'
                           }`}
                       >
-                        <View className="border-0 text-gray-900 min-h-24">
+                        <View className="border-0 text-foreground min-h-24">
                           <InputField
                             control={control}
                             name="bio"
@@ -203,7 +205,7 @@ export default function TrainerAdditionalRegisterPage() {
 
               {/* Expertise Categories */}
               <View className="mb-6">
-                <Text className="text-gray-700 font-medium mb-2">
+                <Text className="text-foreground-2 font-medium mb-2">
                   Expertise Categories
                 </Text>
                 <View className="flex-row flex-wrap gap-2">
@@ -214,12 +216,12 @@ export default function TrainerAdditionalRegisterPage() {
                         key={category}
                         onPress={() => toggleExpertise(category)}
                         className={`px-4 py-2 rounded-full border ${isSelected
-                            ? 'bg-[#73C2FB] border-[#73C2FB]'
-                            : 'bg-white border-gray-300'
+                          ? 'bg-primary-btn border-primary-btn'
+                          : 'bg-white border-neutral'
                           }`}
                       >
                         <Text
-                          className={`${isSelected ? 'text-white' : 'text-gray-700'
+                          className={`${isSelected ? 'text-white' : 'text-foreground-2'
                             } font-medium`}
                         >
                           {category}
@@ -229,7 +231,7 @@ export default function TrainerAdditionalRegisterPage() {
                   })}
                 </View>
                 {errors.expertiseCategories && (
-                  <Text className="text-red-500 text-sm mt-1">
+                  <Text className="text-error text-sm mt-1">
                     {errors.expertiseCategories.message}
                   </Text>
                 )}
@@ -273,7 +275,7 @@ export default function TrainerAdditionalRegisterPage() {
 
               {/* Session Type */}
               <View className="mb-6">
-                <Text className="text-gray-700 font-medium mb-2">Session Type</Text>
+                <Text className="text-foreground-2 font-medium mb-2">Session Type</Text>
                 <View className="flex-row gap-3">
                   {(['online', 'offline', 'both'] as const).map((type) => {
                     let iconName: keyof typeof Ionicons.glyphMap;
@@ -290,8 +292,8 @@ export default function TrainerAdditionalRegisterPage() {
                         key={type}
                         onPress={() => setValue('sessionType', type)}
                         className={`flex-1 px-4 py-3 rounded-lg border items-center ${sessionType === type
-                            ? 'bg-[#73C2FB] border-[#73C2FB]'
-                            : 'bg-white border-gray-300'
+                          ? 'bg-primary-btn border-primary-btn'
+                          : 'bg-white border-neutral'
                           }`}
                       >
                         <Ionicons
@@ -300,7 +302,7 @@ export default function TrainerAdditionalRegisterPage() {
                           color={sessionType === type ? '#FFFFFF' : '#73C2FB'}
                         />
                         <Text
-                          className={`mt-1 font-medium capitalize ${sessionType === type ? 'text-white' : 'text-gray-700'
+                          className={`mt-1 font-medium capitalize ${sessionType === type ? 'text-white' : 'text-foreground-2'
                             }`}
                         >
                           {type}
@@ -310,7 +312,7 @@ export default function TrainerAdditionalRegisterPage() {
                   })}
                 </View>
                 {errors.sessionType && (
-                  <Text className="text-red-500 text-sm mt-1">
+                  <Text className="text-error text-sm mt-1">
                     {errors.sessionType.message}
                   </Text>
                 )}
@@ -337,7 +339,7 @@ export default function TrainerAdditionalRegisterPage() {
               />
             </View>
 
-            <Text className="text-center text-gray-600 text-sm mb-6">
+            <Text className="text-center text-foreground-3 text-sm mb-6">
               By creating an account, you confirm you have read and accepted our
               {' '}
               <Text className="text-primary-btn font-medium">Privacy Policy</Text>

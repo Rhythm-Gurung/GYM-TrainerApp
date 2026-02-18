@@ -38,7 +38,9 @@ export function useGoogleSignIn() {
 
                 await googleLogin(id_token);
                 showSuccessToast('Welcome back!', 'Login Successful');
-                router.replace('/(tabs)/home');
+                // TODO: Route based on user role when backend supports it
+                // For now, all users are routed to client home
+                router.replace('/(tabs)/client/home');
             } else if (result?.type === 'error') {
                 throw new Error('Google sign-in failed');
             }

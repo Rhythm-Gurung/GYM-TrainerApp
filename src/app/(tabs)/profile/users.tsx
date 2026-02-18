@@ -9,12 +9,15 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface User {
     id: string;
@@ -113,9 +116,9 @@ export default function Users() {
                     {/* Header */}
                     <View className="flex-row items-center mb-6">
                         <TouchableOpacity onPress={handleBack} className="mr-4">
-                            <Ionicons name="arrow-back" size={24} color="#000" />
+                            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                         </TouchableOpacity>
-                        <Text className="text-2xl font-bold text-gray-900">Users</Text>
+                        <Text className="text-title font-bold text-foreground">Users</Text>
                     </View>
 
                     {/* Profile Section */}
@@ -128,14 +131,14 @@ export default function Users() {
                                     className="w-32 h-32 rounded-full"
                                 />
                             ) : (
-                                <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                    <Ionicons name="person" size={64} color="#9CA3AF" />
+                                <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                    <Ionicons name="person" size={64} color={colors.textSubtle} />
                                 </View>
                             )}
                         </View>
 
                         {/* Business Name */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-6">
+                        <Text className="text-title font-bold text-foreground mb-6">
                             {user?.business_name || 'Vintuna Stores'}
                         </Text>
                     </View>
@@ -143,36 +146,36 @@ export default function Users() {
                     {/* Users Table */}
                     <View className="mb-6">
                         {/* Table Header */}
-                        <View className="flex-row bg-white border border-gray-200 rounded-t-lg px-4 py-3">
-                            <Text className="text-sm font-semibold text-gray-900 flex-[0.8]">
+                        <View className="flex-row bg-white border border-surface-border rounded-t-lg px-4 py-3">
+                            <Text className="text-sm font-semibold text-foreground flex-[0.8]">
                                 User ID
                             </Text>
-                            <Text className="text-sm font-semibold text-gray-900 flex-[1.5]">
+                            <Text className="text-sm font-semibold text-foreground flex-[1.5]">
                                 Name
                             </Text>
-                            <Text className="text-sm font-semibold text-gray-900 flex-1">
+                            <Text className="text-sm font-semibold text-foreground flex-1">
                                 Dept
                             </Text>
                             <View className="flex-1" />
                         </View>
 
                         {/* Table Rows */}
-                        <View className="bg-white border-x border-b border-gray-200 rounded-b-lg">
+                        <View className="bg-white border-x border-b border-surface-border rounded-b-lg">
                             {usersList.map((userData, index) => (
                                 <View
                                     key={userData.id}
                                     className={`flex-row items-center px-4 py-4 ${index !== usersList.length - 1
-                                            ? 'border-b border-gray-100'
+                                            ? 'border-b border-surface'
                                             : ''
                                         }`}
                                 >
-                                    <Text className="text-sm text-gray-900 flex-[0.8]">
+                                    <Text className="text-sm text-foreground flex-[0.8]">
                                         {userData.userId}
                                     </Text>
-                                    <Text className="text-sm text-gray-900 flex-[1.5]">
+                                    <Text className="text-sm text-foreground flex-[1.5]">
                                         {userData.name}
                                     </Text>
-                                    <Text className="text-sm text-gray-900 flex-1">
+                                    <Text className="text-sm text-foreground flex-1">
                                         {userData.department}
                                     </Text>
                                     <View className="flex-1 items-end">
@@ -190,10 +193,10 @@ export default function Users() {
                                             {disablingUser === userData.id ? (
                                                 <ActivityIndicator
                                                     size="small"
-                                                    color="#EF4444"
+                                                    color={colors.error}
                                                 />
                                             ) : (
-                                                <Text className="text-red-500 font-medium text-sm">
+                                                <Text className="text-error font-medium text-sm">
                                                     Disable
                                                 </Text>
                                             )}
@@ -209,8 +212,8 @@ export default function Users() {
                         onPress={handleAddNewUser}
                         className="flex-row items-center justify-center py-3"
                     >
-                        <Ionicons name="add-circle" size={20} color="#3B82F6" />
-                        <Text className="text-blue-500 font-medium text-base ml-2">
+                        <Ionicons name="add-circle" size={20} color={colors.action} />
+                        <Text className="text-action font-medium text-base ml-2">
                             Add New User
                         </Text>
                     </TouchableOpacity>

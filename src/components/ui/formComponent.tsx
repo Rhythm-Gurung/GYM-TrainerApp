@@ -13,6 +13,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -54,21 +55,21 @@ export function InputField<
     return (
         <View className="mb-6">
             <View
-                className={`flex-row items-center border rounded-lg px-3 py-3 bg-white ${error ? 'border-red-400' : ''
+                className={`flex-row items-center border rounded-lg px-3 py-3 bg-white ${error ? 'border-error-light' : ''
                 }`}
-                style={!error ? { borderColor: '#F7F8F8' } : undefined}
+                style={!error ? { borderColor: colors.inputBorder } : undefined}
             >
                 {leftIcon && (
                     <Ionicons
                         name={leftIcon}
                         size={20}
-                        color={error ? '#F87171' : '#AAAAAA'}
+                        color={error ? colors.error : colors.textSubtle}
                         className="mr-2"
                     />
                 )}
                 <TextInput
-                    className={`flex-1 text-gray-900 ${className ?? ''}`}
-                    placeholderTextColor="#AAAAAA"
+                    className={`flex-1 text-foreground ${className ?? ''}`}
+                    placeholderTextColor={colors.textSubtle}
                     {...props}
                     placeholder={showFloatingLabel ? undefined : placeholder}
                     value={field.value}
@@ -84,7 +85,7 @@ export function InputField<
                         <Ionicons
                             name={rightIcon}
                             size={20}
-                            color="#AAAAAA"
+                            color={colors.textSubtle}
                         />
                     </TouchableOpacity>
                 )}
@@ -97,7 +98,7 @@ export function InputField<
                     {label}
                 </Text>
             )}
-            {error && <Text className="text-red-500 text-sm mt-1">{error}</Text>}
+            {error && <Text className="text-error text-sm mt-1">{error}</Text>}
         </View>
     );
 }
@@ -126,11 +127,11 @@ export function Button({
             activeOpacity={0.7}
         >
             {loading ? (
-                <ActivityIndicator size="small" color="white" />
+                <ActivityIndicator size="small" color={colors.white} />
             ) : (
                 <View className="flex-row items-center gap-2">
-                    {icon && <Ionicons name={icon} size={20} color="white" />}
-                    <Text className="text-white font-semibold text-xl">{title}</Text>
+                    {icon && <Ionicons name={icon} size={20} color={colors.white} />}
+                    <Text className="text-white font-semibold text-sub-heading">{title}</Text>
                 </View>
             )}
         </TouchableOpacity>

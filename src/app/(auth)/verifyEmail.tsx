@@ -12,7 +12,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { type AxiosError } from 'axios';
@@ -31,6 +30,10 @@ import {
     type VerifyEmailFormData,
     verifyEmailSchema,
 } from '@/schemas/auth.schemas';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function VerifyEmailPage() {
     const router = useRouter();
@@ -128,16 +131,16 @@ export default function VerifyEmailPage() {
                 >
                     <View className="flex-1 px-6 justify-center">
                         <View className="items-center mb-6">
-                            <View className="w-20 h-20 bg-green-100 rounded-full items-center justify-center">
-                                <Ionicons name="mail-outline" size={40} color="#10B981" />
+                            <View className="w-20 h-20 bg-status-new-bg rounded-full items-center justify-center">
+                                <Ionicons name="mail-outline" size={40} color={colors.success} />
                             </View>
                         </View>
 
                         <View className="mb-10">
-                            <Text className="text-center text-4xl font-bold text-gray-900 mb-6">
+                            <Text className="text-center text-heading font-bold text-foreground mb-6">
                                 Verify Your Email
                             </Text>
-                            <Text className="text-center text-gray-600 text-base mb-4">
+                            <Text className="text-center text-foreground-3 text-base mb-4">
                                 We
                                 {'\''}
                                 ve sent a 6-digit verification code to your email. Please
@@ -190,7 +193,7 @@ export default function VerifyEmailPage() {
                         </View>
 
                         <View className="flex-row justify-center items-center mt-6">
-                            <Ionicons name="arrow-back-outline" size={16} color="#4B5563" />
+                            <Ionicons name="arrow-back-outline" size={16} color={colors.textMuted} />
                             <Link href="/(auth)/login">
                                 <Text className="text-primary-btn font-medium">
                                     {' '}

@@ -1,5 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
     Link,
     useRouter,
@@ -14,8 +15,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
 import {
@@ -30,6 +29,10 @@ import {
     type LoginFormData,
     loginSchema,
 } from '@/schemas/auth.schemas';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LoginPage() {
     const router = useRouter();
@@ -46,7 +49,7 @@ export default function LoginPage() {
         handleSubmit,
         setValue,
         watch,
-        formState: { errors, isSubmitting},
+        formState: { errors, isSubmitting },
     } = useForm<LoginFormData>({
         resolver: zodResolver(loginSchema),
         mode: 'onBlur',
@@ -119,7 +122,9 @@ export default function LoginPage() {
 
                 await login(data.email, data.password, rememberEmail);
                 showSuccessToast('Welcome back!', 'Login Successful');
-                router.replace('/(tabs)/home');
+                // TODO: Route based on user role when backend supports it
+                // For now, all users are routed to client home
+                router.replace('/(tabs)/client/home/');
             } catch (error) {
                 const errorMessage = getErrorMessage(
                     error,
@@ -147,13 +152,13 @@ export default function LoginPage() {
                             router.replace('/onboarding');
                         }}
                         >
-                            <Text className="text-center text-blue-600 mb-4">Reset Onboarding (Dev Only)</Text>
+                            <Text className="text-center text-action-dark mb-4">Reset Onboarding (Dev Only)</Text>
                         </TouchableOpacity>
                         <View className="mb-10">
-                            <Text className="text-center text-4xl font-bold text-gray-900 mb-6">
+                            <Text className="text-center text-heading font-bold text-foreground mb-6">
                                 Login
                             </Text>
-                            <Text className="text-center text-gray-600 text-base mb-4">
+                            <Text className="text-center text-foreground-3 text-base mb-4">
                                 Please enter your details to login
                             </Text>
                         </View>
@@ -189,11 +194,10 @@ export default function LoginPage() {
                                     className="flex-row items-center"
                                 >
                                     <View
-                                        className={`w-5 h-5 rounded border items-center justify-center ${
-                                            rememberEmail ? 'bg-blue-600 border-blue-600' : 'border-gray-light'
-                                        }`}
+                                        className={`w-5 h-5 rounded border items-center justify-center ${rememberEmail ? 'bg-action-dark border-action-dark' : 'border-gray-light'
+                                            }`}
                                     >
-                                        {rememberEmail && <Ionicons name="checkmark" size={14} color="white" />}
+                                        {rememberEmail && <Ionicons name="checkmark" size={14} color={colors.white} />}
                                     </View>
                                     <Text className="text-gray-light ml-2 font-medium">Remember Me</Text>
                                 </TouchableOpacity>
@@ -215,7 +219,7 @@ export default function LoginPage() {
 
                         <View className="flex-row items-center my-6">
                             <View className="flex-1 h-px bg-gray-light" />
-                            <Text className="mx-4 text-xl text-gray-600 font-medium">Or</Text>
+                            <Text className="mx-4 text-sub-heading text-foreground-3 font-medium">Or</Text>
                             <View className="flex-1 h-px bg-gray-light" />
                         </View>
 
@@ -228,7 +232,7 @@ export default function LoginPage() {
                         </View>
 
                         <View className="flex-row justify-center items-center">
-                            <Text className="text-gray-600 font-medium">
+                            <Text className="text-foreground-3 font-medium">
                                 Don
                                 {'\''}
                                 t have an account?

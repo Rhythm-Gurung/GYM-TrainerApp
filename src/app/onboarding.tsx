@@ -1,6 +1,7 @@
 import BackgroundImage from "@/components/onboardingComponents/backgroundImage";
 import { slides } from "@/constants/onboardingSlides";
 import { isIOS, isTablet, screenWidth } from "@/constants/responsive";
+import { colors } from '@/constants/theme';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { useRouter } from "expo-router";
 import React, { useRef, useState } from "react";
@@ -143,7 +144,7 @@ function OnboardingScreen() {
                 <Animated.Text
                     entering={FadeInDown.delay(200).duration(500)}
                     style={{
-                        color: '#333333',
+                        color: colors.textPrimary,
                         textAlign: 'center',
                         fontSize: isTablet ? wp('3.5%') : wp('5.5%'),
                         fontWeight: '700',
@@ -156,7 +157,7 @@ function OnboardingScreen() {
                 <Animated.Text
                     entering={FadeInDown.delay(300).duration(500)}
                     style={{
-                        color: '#AAAAAA',
+                        color: colors.textSubtle,
                         textAlign: 'center',
                         fontSize: isTablet ? wp('2.2%') : wp('3.5%'),
                         fontWeight: '400',
@@ -172,7 +173,7 @@ function OnboardingScreen() {
     // Initial Logo Screen - shown before carousel
     if (!showCarousel) {
         return (
-            <SafeAreaView className="flex-1 bg-[#FBFBFB]" edges={['top']}>
+            <SafeAreaView className="flex-1 bg-background" edges={['top']}>
                 <Animated.View
                     entering={FadeIn.duration(800)}
                     className="flex-1 justify-center items-center"
@@ -198,7 +199,7 @@ function OnboardingScreen() {
                         }}
                     >
                         <TouchableOpacity
-                            className="bg-[#73C2FB] rounded-lg items-center"
+                            className="bg-primary-btn rounded-lg items-center"
                             style={{ paddingVertical: isTablet ? hp('1.5%') : hp('2%') }}
                             onPress={handleInitialGetStarted}
                             activeOpacity={0.8}
@@ -218,7 +219,7 @@ function OnboardingScreen() {
 
     // Carousel Screen
     return (
-        <SafeAreaView className="flex-1 bg-[#FBFBFB]" edges={['top']}>
+        <SafeAreaView className="flex-1 bg-background" edges={['top']}>
             <View style={{ flex: 1, paddingTop: getContainerPaddingTop() }}>
                 <FlatList
                     ref={flatListRef}
@@ -261,7 +262,7 @@ function OnboardingScreen() {
                         return (
                             <Animated.View
                                 key={slide.id}
-                                className={`rounded ${isActive ? "bg-[#73C2FB]" : "bg-[#73C2FB]"}`}
+                                className={`rounded ${isActive ? "bg-primary-btn" : "bg-primary-btn"}`}
                                 style={{
                                     height: isTablet ? hp('0.6%') : hp('0.8%'),
                                     width: dotWidth,
@@ -282,7 +283,7 @@ function OnboardingScreen() {
                     }}
                 >
                     <TouchableOpacity
-                        className="bg-[#73C2FB] rounded-lg items-center"
+                        className="bg-primary-btn rounded-lg items-center"
                         style={{ paddingVertical: isTablet ? hp('1.5%') : hp('2%') }}
                         onPress={handleNext}
                         activeOpacity={0.8}
@@ -303,7 +304,7 @@ function OnboardingScreen() {
                         hitSlop={{ top: 5, bottom: 10, left: 10, right: 10 }}
                     >
                         <Text
-                            className="text-gray-500 text-center font-medium"
+                            className="text-foreground-4 text-center font-medium"
                             style={{ fontSize: isTablet ? wp('2.3%') : wp('4%') }}
                         >
                             Skip

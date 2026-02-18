@@ -24,6 +24,7 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+import { colors } from '@/constants/theme';
 import {
     CodeField,
     Cursor,
@@ -52,21 +53,21 @@ const styles = StyleSheet.create({
         lineHeight: 54,
         fontSize: 24,
         borderWidth: 2,
-        borderColor: '#E5E7EB',
+        borderColor: colors.surfaceBorder,
         borderRadius: 12,
-        backgroundColor: '#F9FAFB',
+        backgroundColor: colors.surfaceSubtle,
         justifyContent: 'center',
         alignItems: 'center',
         marginHorizontal: 4,
     },
     focusCell: {
-        borderColor: '#2563EB',
-        backgroundColor: '#EFF6FF',
+        borderColor: colors.action,
+        backgroundColor: colors.actionBg,
     },
     cellText: {
         fontSize: 24,
         fontWeight: '600',
-        color: '#1F2937',
+        color: colors.textPrimary,
         textAlign: 'center',
     },
 });
@@ -170,20 +171,20 @@ export default function VerifyForgotPasswordPage() {
                 >
                     <View className="flex-1 px-6 justify-center">
                         <View className="items-center mb-6">
-                            <View className="w-20 h-20 bg-blue-100 rounded-full items-center justify-center">
+                            <View className="w-20 h-20 bg-action-bg rounded-full items-center justify-center">
                                 <Ionicons
                                     name="shield-checkmark-outline"
                                     size={40}
-                                    color="#2563EB"
+                                    color={colors.action}
                                 />
                             </View>
                         </View>
 
                         <View className="mb-10">
-                            <Text className="text-center text-4xl font-bold text-gray-900 mb-6">
+                            <Text className="text-center text-heading font-bold text-foreground mb-6">
                                 Verify Reset Code
                             </Text>
-                            <Text className="text-center text-gray-600 text-base mb-4">
+                            <Text className="text-center text-foreground-3 text-base mb-4">
                                 We
                                 {'\''}
                                 ve sent a 6-digit code to your email. Please enter it
@@ -192,7 +193,7 @@ export default function VerifyForgotPasswordPage() {
                         </View>
 
                         <View className="mb-3">
-                            <Text className="text-gray-700 font-medium mb-3 text-base">
+                            <Text className="text-foreground-2 font-medium mb-3 text-base">
                                 Verification Code
                             </Text>
 
@@ -231,8 +232,8 @@ export default function VerifyForgotPasswordPage() {
 
                             {errors.code && (
                                 <View className="flex-row items-center mt-2">
-                                    <Ionicons name="alert-circle" size={16} color="#EF4444" />
-                                    <Text className="text-red-500 text-sm ml-1">
+                                    <Ionicons name="alert-circle" size={16} color={colors.error} />
+                                    <Text className="text-error text-sm ml-1">
                                         {errors.code.message}
                                     </Text>
                                 </View>
@@ -260,7 +261,7 @@ export default function VerifyForgotPasswordPage() {
                         </View>
 
                         <View className="flex-row justify-center items-center mt-6">
-                            <Ionicons name="arrow-back-outline" size={16} color="#4B5563" />
+                            <Ionicons name="arrow-back-outline" size={16} color={colors.textMuted} />
                             <Link href="/(auth)/login">
                                 <Text className="text-primary-btn font-medium ml-2">Back to Sign In</Text>
                             </Link>

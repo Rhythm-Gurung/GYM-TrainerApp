@@ -15,7 +15,6 @@ import {
     Text,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
     Button,
@@ -26,6 +25,10 @@ import {
     type ChangePasswordFormData,
     changePasswordSchema,
 } from '@/schemas/auth.schemas';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const PASSWORD_REQUIREMENTS = [
     'At least 8 characters',
@@ -97,16 +100,16 @@ export default function ChangePasswordPage() {
                 >
                     <View className="flex-1 px-6 justify-center">
                         <View className="items-center mb-6">
-                            <View className="w-20 h-20 bg-purple-100 rounded-full items-center justify-center">
-                                <Ionicons name="key-outline" size={40} color="#8B5CF6" />
+                            <View className="w-20 h-20 bg-system-bg rounded-full items-center justify-center">
+                                <Ionicons name="key-outline" size={40} color={colors.system} />
                             </View>
                         </View>
 
                         <View className="mb-10">
-                            <Text className="text-center text-4xl font-bold text-gray-900 mb-6">
+                            <Text className="text-center text-heading font-bold text-foreground mb-6">
                                 Create New Password
                             </Text>
-                            <Text className="text-center text-gray-600 text-base mb-4">
+                            <Text className="text-center text-foreground-3 text-base mb-4">
                                 Your new password must be different from previously used
                                 passwords.
                             </Text>
@@ -135,13 +138,13 @@ export default function ChangePasswordPage() {
                                 autoComplete="password-new"
                             />
 
-                            <View className="mb-6 p-4 bg-gray-50 rounded-lg">
-                                <Text className="text-gray-700 font-medium mb-2">
+                            <View className="mb-6 p-4 bg-surface-subtle rounded-lg">
+                                <Text className="text-foreground-2 font-medium mb-2">
                                     Password must contain:
                                 </Text>
                                 <View className="space-y-1">
                                     {PASSWORD_REQUIREMENTS.map((req) => (
-                                        <Text key={req} className="text-gray-600 text-sm">
+                                        <Text key={req} className="text-foreground-3 text-sm">
                                             •
                                             {' '}
                                             {req}

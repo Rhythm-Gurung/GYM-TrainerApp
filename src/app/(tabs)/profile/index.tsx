@@ -9,7 +9,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
@@ -17,6 +16,10 @@ import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
 import type { User } from '@/types/authTypes';
 import { getPrimaryMenuItems, getSecondaryMenuItems } from '@/types/profile/menuItems';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function Profile() {
     const router = useRouter();
@@ -66,7 +69,7 @@ export default function Profile() {
         return (
             <SafeAreaView className="flex-1 bg-background">
                 <View className="flex-1 items-center justify-center">
-                    <ActivityIndicator size="large" color="#3B82F6" />
+                    <ActivityIndicator size="large" color={colors.action} />
                 </View>
             </SafeAreaView>
         );
@@ -89,14 +92,14 @@ export default function Profile() {
                                     className="w-32 h-32 rounded-full"
                                 />
                             ) : (
-                                <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                    <Ionicons name="person" size={64} color="#9CA3AF" />
+                                <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                    <Ionicons name="person" size={64} color={colors.textSubtle} />
                                 </View>
                             )}
                         </View>
 
                         {/* Business Name */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-4">
+                        <Text className="text-title font-bold text-foreground mb-4">
                             {displayName}
                         </Text>
 
@@ -105,7 +108,7 @@ export default function Profile() {
                             onPress={() => {
                                 router.push('/profile/edit');
                             }}
-                            className="bg-blue-500 px-24 py-3 rounded-lg"
+                            className="bg-action px-24 py-3 rounded-lg"
                         >
                             <Text className="text-white text-base font-semibold">Edit</Text>
                         </TouchableOpacity>
@@ -114,14 +117,14 @@ export default function Profile() {
                     {/* Menu Items */}
                     <View className="space-y-4">
                         {/* Primary Menu Items */}
-                        <View className="border border-gray-200 rounded-lg bg-white mb-2">
+                        <View className="border border-surface-border rounded-lg bg-white mb-2">
                             {primaryMenuItems.map((item, index) => (
                                 <TouchableOpacity
                                     key={item.id}
                                     onPress={item.onPress}
                                     className={`flex-row items-center justify-between py-4 px-4 ${
                                         index !== primaryMenuItems.length - 1
-                                            ? 'border-b border-gray-100'
+                                            ? 'border-b border-surface'
                                             : ''
                                     }`}
                                 >
@@ -130,22 +133,22 @@ export default function Profile() {
                                             <Ionicons
                                                 name={item.icon}
                                                 size={24}
-                                                color="#3B82F6"
+                                                color={colors.action}
                                             />
                                         </View>
-                                        <Text className="ml-4 text-base text-gray-700">
+                                        <Text className="ml-4 text-base text-foreground-2">
                                             {item.label}
                                         </Text>
                                     </View>
                                     {item.showChevron && (
-                                        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                                        <Ionicons name="chevron-forward" size={20} color={colors.textSubtle} />
                                     )}
                                 </TouchableOpacity>
                             ))}
                         </View>
 
                         {/* Secondary Menu Items */}
-                        <View className="border border-gray-200 rounded-lg bg-white">
+                        <View className="border border-surface-border rounded-lg bg-white">
                             {secondaryMenuItems.map((item, index) => (
                                 <TouchableOpacity
                                     key={item.id}
@@ -153,7 +156,7 @@ export default function Profile() {
                                     disabled={item.id === 'logout' && isLoggingOut}
                                     className={`flex-row items-center justify-between py-4 px-4 ${
                                         index !== secondaryMenuItems.length - 1
-                                            ? 'border-b border-gray-100'
+                                            ? 'border-b border-surface'
                                             : ''
                                     }`}
                                 >
@@ -162,14 +165,14 @@ export default function Profile() {
                                             <Ionicons
                                                 name={item.icon}
                                                 size={24}
-                                                color={item.id === 'logout' ? '#EF4444' : '#3B82F6'}
+                                                color={item.id === 'logout' ? colors.error : colors.action}
                                             />
                                         </View>
                                         <Text
                                             className={`ml-4 text-base ${
                                                 item.id === 'logout'
-                                                    ? 'text-red-500'
-                                                    : 'text-gray-700'
+                                                    ? 'text-error'
+                                                    : 'text-foreground-2'
                                             }`}
                                         >
                                             {item.label}
@@ -177,13 +180,13 @@ export default function Profile() {
                                         {item.id === 'logout' && isLoggingOut && (
                                             <ActivityIndicator
                                                 size="small"
-                                                color="#EF4444"
+                                                color={colors.error}
                                                 style={{ marginLeft: 8 }}
                                             />
                                         )}
                                     </View>
                                     {item.showChevron && (
-                                        <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+                                        <Ionicons name="chevron-forward" size={20} color={colors.textSubtle} />
                                     )}
                                 </TouchableOpacity>
                             ))}

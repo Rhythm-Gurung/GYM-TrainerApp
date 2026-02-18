@@ -9,12 +9,15 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface BillingPlan {
     id: string;
@@ -103,9 +106,9 @@ export default function BillingPlans() {
                     {/* Header */}
                     <View className="flex-row items-center mb-6">
                         <TouchableOpacity onPress={handleBack} className="mr-4">
-                            <Ionicons name="arrow-back" size={24} color="#000" />
+                            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                         </TouchableOpacity>
-                        <Text className="text-2xl font-bold text-gray-900">
+                        <Text className="text-title font-bold text-foreground">
                             Billing Plans
                         </Text>
                     </View>
@@ -120,33 +123,33 @@ export default function BillingPlans() {
                                     className="w-32 h-32 rounded-full"
                                 />
                             ) : (
-                                <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                    <Ionicons name="person" size={64} color="#9CA3AF" />
+                                <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                    <Ionicons name="person" size={64} color={colors.textSubtle} />
                                 </View>
                             )}
                         </View>
 
                         {/* Business Name */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-6">
+                        <Text className="text-title font-bold text-foreground mb-6">
                             {user?.business_name || 'Vintuna Stores'}
                         </Text>
                     </View>
 
                     {/* Current Subscription */}
                     <View className="mb-6">
-                        <Text className="text-base font-semibold text-gray-900 mb-3">
+                        <Text className="text-base font-semibold text-foreground mb-3">
                             Current Subscription
                         </Text>
-                        <View className="bg-white border border-gray-200 rounded-lg px-4 py-4">
+                        <View className="bg-white border border-surface-border rounded-lg px-4 py-4">
                             <Text
                                 className={`text-base font-semibold ${currentSubscription.isPremium
-                                        ? 'text-blue-500'
-                                        : 'text-gray-900'
+                                        ? 'text-action'
+                                        : 'text-foreground'
                                     }`}
                             >
                                 {currentSubscription.planName}
                             </Text>
-                            <Text className="text-sm text-gray-500 mt-1">
+                            <Text className="text-sm text-foreground-4 mt-1">
                                 {'Expires on '}
                                 {currentSubscription.expiryDate}
                             </Text>
@@ -155,17 +158,17 @@ export default function BillingPlans() {
 
                     {/* Available Billing Plans */}
                     <View>
-                        <Text className="text-base font-semibold text-gray-900 mb-3">
+                        <Text className="text-base font-semibold text-foreground mb-3">
                             Available Billing Plans
                         </Text>
                         <View className="gap-4">
                             {billingPlans.map((plan) => (
                                 <View
                                     key={plan.id}
-                                    className="bg-white border border-gray-200 rounded-lg p-4"
+                                    className="bg-white border border-surface-border rounded-lg p-4"
                                 >
                                     {/* Plan Name */}
-                                    <Text className="text-lg font-semibold text-gray-900 mb-3">
+                                    <Text className="text-lead font-semibold text-foreground mb-3">
                                         {plan.name}
                                     </Text>
 
@@ -179,10 +182,10 @@ export default function BillingPlans() {
                                                 <Ionicons
                                                     name="checkmark-circle"
                                                     size={20}
-                                                    color="#000"
+                                                    color={colors.textPrimary}
                                                     style={{ marginRight: 8, marginTop: 2 }}
                                                 />
-                                                <Text className="text-sm text-gray-700 flex-1">
+                                                <Text className="text-sm text-foreground-2 flex-1">
                                                     {feature}
                                                 </Text>
                                             </View>
@@ -193,10 +196,10 @@ export default function BillingPlans() {
                                     <TouchableOpacity
                                         onPress={() => handleSubscribe(plan.id)}
                                         disabled={subscribingTo !== null}
-                                        className="bg-blue-500 py-3 rounded-lg items-center"
+                                        className="bg-action py-3 rounded-lg items-center"
                                     >
                                         {subscribingTo === plan.id ? (
-                                            <ActivityIndicator size="small" color="#FFF" />
+                                            <ActivityIndicator size="small" color={colors.white} />
                                         ) : (
                                             <Text className="text-white font-semibold text-base">
                                                 Subscribe

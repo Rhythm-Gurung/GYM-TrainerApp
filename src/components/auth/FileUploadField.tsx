@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { colors } from '@/constants/theme';
 
 interface FileUploadFieldProps {
   label: string;
@@ -19,10 +20,10 @@ export function FileUploadField({
 }: FileUploadFieldProps) {
   return (
     <View className="mb-6">
-      <Text className="text-gray-700 font-medium mb-2">{label}</Text>
+      <Text className="text-foreground-2 font-medium mb-2">{label}</Text>
       <TouchableOpacity
         className={`flex-row items-center justify-between border rounded-lg px-4 py-4 bg-white ${
-          error ? 'border-red-400' : 'border-gray-200'
+          error ? 'border-error-light' : 'border-surface-border'
         }`}
         onPress={onPress}
         activeOpacity={0.7}
@@ -35,15 +36,15 @@ export function FileUploadField({
             className="mr-3"
           />
           <Text
-            className={`flex-1 ${fileName ? 'text-gray-900' : 'text-gray-400'}`}
+            className={`flex-1 ${fileName ? 'text-foreground' : 'text-foreground-5'}`}
             numberOfLines={1}
           >
             {fileName || `Choose ${multiple ? 'files' : 'file'}`}
           </Text>
         </View>
-        <Ionicons name="cloud-upload-outline" size={20} color="#73C2FB" />
+        <Ionicons name="cloud-upload-outline" size={20} color={colors.primaryBtn} />
       </TouchableOpacity>
-      {error && <Text className="text-red-500 text-sm mt-1">{error}</Text>}
+      {error && <Text className="text-error text-sm mt-1">{error}</Text>}
     </View>
   );
 }

@@ -11,7 +11,6 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
     Button,
@@ -23,6 +22,10 @@ import {
     type AdditionalRegisterFormData,
     additionalRegisterSchema,
 } from '@/schemas/auth.schemas';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AdditionalRegisterPage() {
     const router = useRouter();
@@ -105,7 +108,7 @@ export default function AdditionalRegisterPage() {
                 >
                     <View className="flex-1 px-6 justify-center">
                         <View className="mb-10">
-                            <Text className="text-center text-4xl font-bold text-gray-900 mb-6">
+                            <Text className="text-center text-heading font-bold text-foreground mb-6">
                                 Additional Details
                             </Text>
                             <Text className="text-center text-gray-light text-base mb-4">
@@ -170,15 +173,15 @@ export default function AdditionalRegisterPage() {
                                 className="flex-row items-center mb-3"
                             >
                                 <View
-                                    className={`w-5 h-5 rounded border items-center justify-center ${agreeCompanyPolicies ? 'bg-blue-600 border-blue-600' : 'border-gray-light'
+                                    className={`w-5 h-5 rounded border items-center justify-center ${agreeCompanyPolicies ? 'bg-action-dark border-action-dark' : 'border-gray-light'
                                         }`}
                                 >
-                                    {agreeCompanyPolicies && <Ionicons name="checkmark" size={14} color="white" />}
+                                    {agreeCompanyPolicies && <Ionicons name="checkmark" size={14} color={colors.white} />}
                                 </View>
                                 <Text className="text-gray-light ml-2 font-medium">I agree with company policies</Text>
                             </TouchableOpacity>
                             {errors.agreeCompanyPolicies && (
-                                <Text className="text-red-500 text-sm mb-2">{errors.agreeCompanyPolicies.message}</Text>
+                                <Text className="text-error text-sm mb-2">{errors.agreeCompanyPolicies.message}</Text>
                             )}
 
                             <TouchableOpacity
@@ -186,10 +189,10 @@ export default function AdditionalRegisterPage() {
                                 className="flex-row items-center"
                             >
                                 <View
-                                    className={`w-5 h-5 rounded border items-center justify-center ${receiveNews ? 'bg-blue-600 border-blue-600' : 'border-gray-light'
+                                    className={`w-5 h-5 rounded border items-center justify-center ${receiveNews ? 'bg-action-dark border-action-dark' : 'border-gray-light'
                                         }`}
                                 >
-                                    {receiveNews && <Ionicons name="checkmark" size={14} color="white" />}
+                                    {receiveNews && <Ionicons name="checkmark" size={14} color={colors.white} />}
                                 </View>
                                 <Text className="text-gray-light ml-2 font-medium">
                                     Send me news and update from supplier.com
@@ -197,7 +200,7 @@ export default function AdditionalRegisterPage() {
                             </TouchableOpacity>
                         </View>
 
-                        <Text className="text-center text-gray-600 text-sm mb-6">
+                        <Text className="text-center text-foreground-3 text-sm mb-6">
                             By creating an account, you confirm you have read
                             {' '}
                             and accepted our

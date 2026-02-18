@@ -7,7 +7,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Link, useRouter } from 'expo-router';
@@ -20,6 +19,9 @@ import {
   type TrainerRegisterFormData,
   trainerRegisterSchema,
 } from '@/schemas/trainer.schemas';
+
+
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function TrainerRegisterPage() {
   const router = useRouter();
@@ -102,7 +104,7 @@ export default function TrainerRegisterPage() {
         >
           <View className="flex-1 px-6 justify-center">
             <View className="mb-10">
-              <Text className="text-center text-4xl font-bold text-gray-900 mb-6">
+              <Text className="text-center text-heading font-bold text-foreground mb-6">
                 Trainer Registration
               </Text>
               <Text className="text-center text-gray-light text-base mb-4">
@@ -161,7 +163,7 @@ export default function TrainerRegisterPage() {
 
             <View className="flex-row items-center my-6">
               <View className="flex-1 h-px bg-gray-light" />
-              <Text className="mx-4 text-xl text-gray-600 font-medium">Or</Text>
+              <Text className="mx-4 text-sub-heading text-foreground-3 font-medium">Or</Text>
               <View className="flex-1 h-px bg-gray-light" />
             </View>
 
@@ -174,7 +176,7 @@ export default function TrainerRegisterPage() {
             </View>
 
             <View className="flex-row justify-center items-center">
-              <Text className="text-gray-600">Already have an account? </Text>
+              <Text className="text-foreground-3">Already have an account? </Text>
               <Link href="/(auth)/login">
                 <Text className="text-primary-btn font-medium">Sign In</Text>
               </Link>

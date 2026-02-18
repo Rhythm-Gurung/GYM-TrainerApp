@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
+import { colors } from '@/constants/theme';
 import { widthPercentageToDP as wp } from 'react-native-responsive-screen';
 
 type IoniconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -23,7 +24,7 @@ export function RoleSelectorCard({
   return (
     <TouchableOpacity
       className={`rounded-2xl p-6 mb-4 ${
-        selected ? 'bg-[#73C2FB] border-2 border-[#73C2FB]' : 'bg-white border-2 border-gray-200'
+        selected ? 'bg-primary-btn border-2 border-primary-btn' : 'bg-white border-2 border-surface-border'
       }`}
       onPress={onPress}
       activeOpacity={0.8}
@@ -45,7 +46,7 @@ export function RoleSelectorCard({
             />
             <Text
               className={`ml-3 font-bold ${
-                selected ? 'text-white' : 'text-gray-900'
+                selected ? 'text-white' : 'text-foreground'
               }`}
               style={{ fontSize: wp('5%') }}
             >
@@ -53,7 +54,7 @@ export function RoleSelectorCard({
             </Text>
           </View>
           <Text
-            className={`${selected ? 'text-white' : 'text-gray-600'}`}
+            className={`${selected ? 'text-white' : 'text-foreground-3'}`}
             style={{ fontSize: wp('3.5%') }}
           >
             {description}
@@ -63,7 +64,7 @@ export function RoleSelectorCard({
           <Ionicons
             name="checkmark-circle"
             size={wp('7%')}
-            color="#FFFFFF"
+            color={colors.white}
           />
         )}
       </View>

@@ -9,12 +9,15 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface SettingItem {
     id: string;
@@ -96,9 +99,9 @@ export default function Settings() {
                     {/* Header */}
                     <View className="flex-row items-center mb-6">
                         <TouchableOpacity onPress={handleBack} className="mr-4">
-                            <Ionicons name="arrow-back" size={24} color="#000" />
+                            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                         </TouchableOpacity>
-                        <Text className="text-2xl font-bold text-gray-900">Settings</Text>
+                        <Text className="text-title font-bold text-foreground">Settings</Text>
                     </View>
 
                     {/* Profile Section */}
@@ -111,38 +114,38 @@ export default function Settings() {
                                     className="w-32 h-32 rounded-full"
                                 />
                             ) : (
-                                <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                    <Ionicons name="person" size={64} color="#9CA3AF" />
+                                <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                    <Ionicons name="person" size={64} color={colors.textSubtle} />
                                 </View>
                             )}
                         </View>
 
                         {/* Business Name */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-6">
+                        <Text className="text-title font-bold text-foreground mb-6">
                             {user?.business_name || 'Vintuna Stores'}
                         </Text>
                     </View>
 
                     {/* Settings List */}
-                    <View className="bg-white border border-gray-200 rounded-lg">
+                    <View className="bg-white border border-surface-border rounded-lg">
                         {settings.map((setting, index) => (
                             <View
                                 key={setting.id}
                                 className={`flex-row items-center justify-between px-4 py-4 ${
                                     index !== settings.length - 1
-                                        ? 'border-b border-gray-100'
+                                        ? 'border-b border-surface'
                                         : ''
                                 }`}
                             >
-                                <Text className="text-base text-gray-900 flex-1">
+                                <Text className="text-base text-foreground flex-1">
                                     {setting.label}
                                 </Text>
                                 <Switch
                                     value={setting.value}
                                     onValueChange={setting.onChange}
-                                    trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-                                    thumbColor={setting.value ? '#3B82F6' : '#F3F4F6'}
-                                    ios_backgroundColor="#D1D5DB"
+                                    trackColor={{ false: colors.neutral, true: colors.actionTrack }}
+                                    thumbColor={setting.value ? colors.action : colors.surface}
+                                    ios_backgroundColor={colors.neutral}
                                 />
                             </View>
                         ))}
@@ -150,12 +153,12 @@ export default function Settings() {
 
                     {/* Additional Settings Sections */}
                     <View className="mt-6">
-                        <Text className="text-lg font-semibold text-gray-900 mb-3">
+                        <Text className="text-lead font-semibold text-foreground mb-3">
                             Account
                         </Text>
-                        <View className="bg-white border border-gray-200 rounded-lg">
+                        <View className="bg-white border border-surface-border rounded-lg">
                             <TouchableOpacity
-                                className="flex-row items-center justify-between px-4 py-4 border-b border-gray-100"
+                                className="flex-row items-center justify-between px-4 py-4 border-b border-surface"
                                 onPress={() => {
                                     // TODO: Navigate to change password
                                 }}
@@ -164,17 +167,17 @@ export default function Settings() {
                                     <Ionicons
                                         name="lock-closed-outline"
                                         size={20}
-                                        color="#6B7280"
+                                        color={colors.textMuted}
                                         style={{ marginRight: 12 }}
                                     />
-                                    <Text className="text-base text-gray-900">
+                                    <Text className="text-base text-foreground">
                                         Change Password
                                     </Text>
                                 </View>
                                 <Ionicons
                                     name="chevron-forward"
                                     size={20}
-                                    color="#9CA3AF"
+                                    color={colors.textSubtle}
                                 />
                             </TouchableOpacity>
 
@@ -188,17 +191,17 @@ export default function Settings() {
                                     <Ionicons
                                         name="trash-outline"
                                         size={20}
-                                        color="#EF4444"
+                                        color={colors.error}
                                         style={{ marginRight: 12 }}
                                     />
-                                    <Text className="text-base text-red-500">
+                                    <Text className="text-base text-error">
                                         Delete Account
                                     </Text>
                                 </View>
                                 <Ionicons
                                     name="chevron-forward"
                                     size={20}
-                                    color="#9CA3AF"
+                                    color={colors.textSubtle}
                                 />
                             </TouchableOpacity>
                         </View>

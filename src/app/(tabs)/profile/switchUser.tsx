@@ -9,12 +9,15 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface Profile {
     id: string;
@@ -105,9 +108,9 @@ export default function SwitchUser() {
                     {/* Header */}
                     <View className="flex-row items-center mb-6">
                         <TouchableOpacity onPress={handleBack} className="mr-4">
-                            <Ionicons name="arrow-back" size={24} color="#000" />
+                            <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                         </TouchableOpacity>
-                        <Text className="text-2xl font-bold text-gray-900">
+                        <Text className="text-title font-bold text-foreground">
                             Switch User
                         </Text>
                     </View>
@@ -122,30 +125,30 @@ export default function SwitchUser() {
                                     className="w-32 h-32 rounded-full"
                                 />
                             ) : (
-                                <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                    <Ionicons name="person" size={64} color="#9CA3AF" />
+                                <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                    <Ionicons name="person" size={64} color={colors.textSubtle} />
                                 </View>
                             )}
                         </View>
 
                         {/* Business Name */}
-                        <Text className="text-2xl font-bold text-gray-900 mb-4">
+                        <Text className="text-title font-bold text-foreground mb-4">
                             {user?.business_name || 'Vintuna Stores'}
                         </Text>
                     </View>
 
                     {/* Current Profile Section */}
                     <View className="mb-6">
-                        <Text className="text-base font-semibold text-gray-900 mb-3">
+                        <Text className="text-base font-semibold text-foreground mb-3">
                             Current Profile
                         </Text>
-                        <View className="bg-white border border-gray-200 rounded-lg px-4 py-4">
+                        <View className="bg-white border border-surface-border rounded-lg px-4 py-4">
                             <View className="flex-row items-center justify-between">
                                 <View className="flex-1">
-                                    <Text className="text-base font-medium text-gray-900">
+                                    <Text className="text-base font-medium text-foreground">
                                         {currentProfile.name}
                                     </Text>
-                                    <Text className="text-sm text-blue-500 mt-1">
+                                    <Text className="text-sm text-action mt-1">
                                         {currentProfile.role}
                                     </Text>
                                 </View>
@@ -155,23 +158,23 @@ export default function SwitchUser() {
 
                     {/* Available Profiles Section */}
                     <View>
-                        <Text className="text-base font-semibold text-gray-900 mb-3">
+                        <Text className="text-base font-semibold text-foreground mb-3">
                             Available Profiles
                         </Text>
-                        <View className="bg-white border border-gray-200 rounded-lg">
+                        <View className="bg-white border border-surface-border rounded-lg">
                             {availableProfiles.map((profile, index) => (
                                 <View
                                     key={profile.id}
                                     className={`flex-row items-center justify-between px-4 py-4 ${index !== availableProfiles.length - 1
-                                            ? 'border-b border-gray-100'
+                                            ? 'border-b border-surface'
                                             : ''
                                         }`}
                                 >
                                     <View className="flex-1">
-                                        <Text className="text-base font-medium text-gray-900">
+                                        <Text className="text-base font-medium text-foreground">
                                             {profile.name}
                                         </Text>
-                                        <Text className="text-sm text-gray-500 mt-1">
+                                        <Text className="text-sm text-foreground-4 mt-1">
                                             {profile.role}
                                         </Text>
                                     </View>
@@ -181,9 +184,9 @@ export default function SwitchUser() {
                                         className="px-4 py-2"
                                     >
                                         {isSwitching === profile.id ? (
-                                            <ActivityIndicator size="small" color="#3B82F6" />
+                                            <ActivityIndicator size="small" color={colors.action} />
                                         ) : (
-                                            <Text className="text-blue-500 font-medium">
+                                            <Text className="text-action font-medium">
                                                 Switch
                                             </Text>
                                         )}

@@ -12,13 +12,16 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { Button, InputField } from '@/components/ui/formComponent';
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface AddUserFormData {
     userId: string;
@@ -90,9 +93,9 @@ export default function AddUser() {
                         {/* Header */}
                         <View className="flex-row items-center mb-6">
                             <TouchableOpacity onPress={handleCancel} className="mr-4">
-                                <Ionicons name="arrow-back" size={24} color="#000" />
+                                <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                             </TouchableOpacity>
-                            <Text className="text-2xl font-bold text-gray-900">
+                            <Text className="text-title font-bold text-foreground">
                                 Add New User
                             </Text>
                         </View>
@@ -107,14 +110,14 @@ export default function AddUser() {
                                         className="w-32 h-32 rounded-full"
                                     />
                                 ) : (
-                                    <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                        <Ionicons name="person" size={64} color="#9CA3AF" />
+                                    <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                        <Ionicons name="person" size={64} color={colors.textSubtle} />
                                     </View>
                                 )}
                             </View>
 
                             {/* Business Name */}
-                            <Text className="text-2xl font-bold text-gray-900 mb-6">
+                            <Text className="text-title font-bold text-foreground mb-6">
                                 {user?.business_name || 'Vintuna Stores'}
                             </Text>
                         </View>
@@ -150,14 +153,14 @@ export default function AddUser() {
 
                             {/* Status Toggle */}
                             <View className="mb-6">
-                                <View className="flex-row items-center justify-between bg-white border border-gray-200 rounded-lg px-4 py-4">
-                                    <Text className="text-base text-gray-900">Status</Text>
+                                <View className="flex-row items-center justify-between bg-white border border-surface-border rounded-lg px-4 py-4">
+                                    <Text className="text-base text-foreground">Status</Text>
                                     <Switch
                                         value={isActive}
                                         onValueChange={setIsActive}
-                                        trackColor={{ false: '#D1D5DB', true: '#93C5FD' }}
-                                        thumbColor={isActive ? '#3B82F6' : '#F3F4F6'}
-                                        ios_backgroundColor="#D1D5DB"
+                                        trackColor={{ false: colors.neutral, true: colors.actionTrack }}
+                                        thumbColor={isActive ? colors.action : colors.surface}
+                                        ios_backgroundColor={colors.neutral}
                                     />
                                 </View>
                             </View>
@@ -176,9 +179,9 @@ export default function AddUser() {
                                 <TouchableOpacity
                                     onPress={handleCancel}
                                     disabled={isLoading}
-                                    className="border-2 border-orange-500 py-4 rounded-lg items-center"
+                                    className="border-2 border-cancel py-4 rounded-lg items-center"
                                 >
-                                    <Text className="text-orange-500 text-base font-semibold">
+                                    <Text className="text-cancel text-base font-semibold">
                                         Cancel
                                     </Text>
                                 </TouchableOpacity>

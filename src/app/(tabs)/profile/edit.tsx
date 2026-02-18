@@ -11,13 +11,16 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 
 import { Button, InputField } from '@/components/ui/formComponent';
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
+
+
+import { colors } from '@/constants/theme';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface EditProfileFormData {
     businessType: string;
@@ -105,9 +108,9 @@ export default function EditProfile() {
                         {/* Header */}
                         <View className="flex-row items-center mb-6">
                             <TouchableOpacity onPress={handleCancel} className="mr-4">
-                                <Ionicons name="arrow-back" size={24} color="#000" />
+                                <Ionicons name="arrow-back" size={24} color={colors.textPrimary} />
                             </TouchableOpacity>
-                            <Text className="text-2xl font-bold text-gray-900">
+                            <Text className="text-title font-bold text-foreground">
                                 Edit Profile
                             </Text>
                         </View>
@@ -121,8 +124,8 @@ export default function EditProfile() {
                                         className="w-32 h-32 rounded-full"
                                     />
                                 ) : (
-                                    <View className="w-32 h-32 rounded-full bg-gray-200 items-center justify-center">
-                                        <Ionicons name="person" size={64} color="#9CA3AF" />
+                                    <View className="w-32 h-32 rounded-full bg-surface-border items-center justify-center">
+                                        <Ionicons name="person" size={64} color={colors.textSubtle} />
                                     </View>
                                 )}
                                 <TouchableOpacity
@@ -132,9 +135,9 @@ export default function EditProfile() {
                                         bottom: 0,
                                         right: 0,
                                     }}
-                                    className="bg-blue-500 w-10 h-10 rounded-full items-center justify-center border-4 border-white"
+                                    className="bg-action w-10 h-10 rounded-full items-center justify-center border-4 border-white"
                                 >
-                                    <Ionicons name="camera" size={20} color="#FFF" />
+                                    <Ionicons name="camera" size={20} color={colors.white} />
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -221,9 +224,9 @@ export default function EditProfile() {
                                 <TouchableOpacity
                                     onPress={handleCancel}
                                     disabled={isLoading}
-                                    className="border-2 border-orange-500 py-4 rounded-lg items-center"
+                                    className="border-2 border-cancel py-4 rounded-lg items-center"
                                 >
-                                    <Text className="text-orange-500 text-base font-semibold">
+                                    <Text className="text-cancel text-base font-semibold">
                                         Cancel
                                     </Text>
                                 </TouchableOpacity>

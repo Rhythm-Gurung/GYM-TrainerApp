@@ -1,0 +1,201 @@
+
+> setu@1.0.0 lint E:\GYMJAM\GYM-TrainerApp
+> eslint src/**/*.{ts,tsx,js,jsx}
+
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\RoleSelectorCard.tsx
+Line 26, column 18: ';' expected.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\RoleSelectorCard.tsx
+Line 26, column 18: ';' expected.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\RoleSelectorCard.tsx
+Line 26, column 18: ';' expected.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\FileUploadField.tsx
+Line 25, column 20: ';' expected.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\FileUploadField.tsx
+Line 25, column 20: ';' expected.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\FileUploadField.tsx
+Line 25, column 20: ';' expected.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+Error while parsing E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+Line 42, column 0: Unterminated template literal.
+`parseForESLint` from parser `@typescript-eslint/parser` is invalid and will just be ignored
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\additionalRegister.tsx
+   26:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  100:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\changePassword.tsx
+  29:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  92:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\forgotPassword.tsx
+  29:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  86:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\login.tsx
+   19:32  error  Parse errors in imported module '@/components/auth/GoogleSignInButton': Unterminated template literal. (42:0)  import/no-named-as-default
+   19:32  error  Parse errors in imported module '@/components/auth/GoogleSignInButton': Unterminated template literal. (42:0)  import/no-named-as-default-member
+   33:1   error  Expected an assignment or function call and instead saw an expression                                          @typescript-eslint/no-unused-expressions
+  140:10  error  'SafeAreaView' is not defined                                                                                  react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\register.tsx
+   18:32  error  Parse errors in imported module '@/components/auth/GoogleSignInButton': Unterminated template literal. (42:0)  import/no-named-as-default
+   18:32  error  Parse errors in imported module '@/components/auth/GoogleSignInButton': Unterminated template literal. (42:0)  import/no-named-as-default-member
+   29:1   error  Expected an assignment or function call and instead saw an expression                                          @typescript-eslint/no-unused-expressions
+  103:10  error  'SafeAreaView' is not defined                                                                                  react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\roleSelection.tsx
+   10:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+   42:6   error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+   43:8   error  'Animated' is not defined                                              react/jsx-no-undef
+   64:10  error  'Animated' is not defined                                              react/jsx-no-undef
+   83:10  error  'Animated' is not defined                                              react/jsx-no-undef
+  105:10  error  'Animated' is not defined                                              react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\trainerAdditionalRegister.tsx
+   24:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  137:6  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\trainerRegister.tsx
+  15:32  error  Parse errors in imported module '@/components/auth/GoogleSignInButton': Unterminated template literal. (42:0)  import/no-named-as-default
+  15:32  error  Parse errors in imported module '@/components/auth/GoogleSignInButton': Unterminated template literal. (42:0)  import/no-named-as-default-member
+  23:1   error  Expected an assignment or function call and instead saw an expression                                          @typescript-eslint/no-unused-expressions
+  97:6   error  'SafeAreaView' is not defined                                                                                  react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(auth)\verifyEmail.tsx
+   34:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  123:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\client\_layout.tsx
+  145:0  error  Parsing error: Unterminated template literal
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\client\discover.tsx
+  4:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\addUser.tsx
+  22:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  82:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\billingPlans.tsx
+   18:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  100:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\edit.tsx
+  21:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  97:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\index.tsx
+  20:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  70:14  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+  79:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\rolesAccess.tsx
+   18:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  187:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\settings.tsx
+  18:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  93:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\switchUser.tsx
+   18:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  102:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\profile\users.tsx
+   18:1   error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+  110:10  error  'SafeAreaView' is not defined                                          react/jsx-no-undef
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\trainer\_layout.tsx
+  140:0  error  Parsing error: Unterminated template literal
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\trainer\bookings.tsx
+  4:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\trainer\dashboard.tsx
+  4:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\trainer\earnings.tsx
+  4:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\trainer\profile.tsx
+  4:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+E:\GYMJAM\GYM-TrainerApp\src\app\(tabs)\trainer\schedule.tsx
+  4:1  error  Expected an assignment or function call and instead saw an expression  @typescript-eslint/no-unused-expressions
+
+E:\GYMJAM\GYM-TrainerApp\src\app\index.tsx
+  27:1  error  Parsing error: Unterminated template literal
+
+E:\GYMJAM\GYM-TrainerApp\src\components\auth\FileUploadField.tsx
+  25:20  error  Parsing error: ';' expected
+
+E:\GYMJAM\GYM-TrainerApp\src\components\auth\GoogleSignInButton.tsx
+  42:0  error  Parsing error: Unterminated template literal
+
+E:\GYMJAM\GYM-TrainerApp\src\components\auth\RoleSelectorCard.tsx
+  26:18  error  Parsing error: ';' expected
+
+E:\GYMJAM\GYM-TrainerApp\src\components\ui\DrawerContent.tsx
+  121:1  error  Parsing error: Unterminated template literal
+
+E:\GYMJAM\GYM-TrainerApp\src\components\ui\header.tsx
+  58:22  error  Parsing error: Unterminated template literal
+
+✖ 59 problems (59 errors, 0 warnings)
+
+ ELIFECYCLE  Command failed with exit code 1.

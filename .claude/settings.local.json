@@ -2,7 +2,21 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(echo:*)",
+      "Bash(powershell -NoProfile -Command \"Get-ChildItem -Path ''e:\\\\GYMJAM\\\\GYM-TrainerApp\\\\src'' -Recurse -Include ''*.tsx'',''*.ts'' | Select-String -Pattern ''primary-btn|tab-active|gray-light'' | Select-Object -ExpandProperty Path -Unique | Sort-Object\")",
+      "Bash(powershell -NoProfile -Command \"Get-ChildItem -Path ''e:\\\\GYMJAM\\\\GYM-TrainerApp\\\\src'' -Recurse -Include ''*.tsx'',''*.ts'' | Select-String -Pattern ''text-badge|text-caption|text-body|text-section'' | Select-Object -ExpandProperty Path -Unique | Sort-Object\")",
+      "Bash(powershell -NoProfile -Command \"Get-ChildItem -Path ''e:\\\\GYMJAM\\\\GYM-TrainerApp\\\\src'' -Recurse -Include ''*.tsx'',''*.ts'' | Select-String -Pattern ''primary-btn|tab-active|gray-light'' | Select-Object -ExpandProperty Path -Unique | Sort-Object; Write-Host ''done''\")",
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"e:\\\\GYMJAM\\\\GYM-TrainerApp\\\\check_patterns.ps1\")",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -NoProfile -File -:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(tee:*)",
+      "Bash(powershell -File -:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:/Windows/Temp/fix_backticks.ps1\")",
+      "Bash(python3:*)",
+      "Bash(head:*)"
     ]
   }
 }

@@ -2,6 +2,7 @@ import { useOnboarding } from '@/hooks/useOnboarding';
 import { Redirect } from 'expo-router';
 import React from 'react';
 import { ActivityIndicator, View } from 'react-native';
+import { colors } from '@/constants/theme';
 
 export default function Index() {
     // Get onboarding status from unboarding hook
@@ -10,7 +11,7 @@ export default function Index() {
     // Show loading indicator while checking onboarding status from AsyncStorage
     if (isLoading) {
         return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#FBFBFB' }}>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
                 <ActivityIndicator size="large" color="#73C2FB" />
             </View>
         );

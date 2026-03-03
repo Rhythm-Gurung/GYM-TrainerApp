@@ -54,6 +54,9 @@ export default function ChangePasswordPage() {
         },
     });
 
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const newPassword = watch('newPassword');
+
     const onSubmit = useCallback(
         async (data: ChangePasswordFormData) => {
             try {
@@ -141,8 +144,8 @@ export default function ChangePasswordPage() {
                             />
 
                             <PasswordRequirements
-                                password={watch('newPassword')}
-                                showValidation={!!watch('newPassword')}
+                                password={newPassword}
+                                showValidation={!!newPassword}
                             />
 
                             <View className="items-center mt-8">

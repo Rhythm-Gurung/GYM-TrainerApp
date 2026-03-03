@@ -50,7 +50,7 @@ export function FileUploadField({
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
             {files.map((file, index) => (
               <View
-                key={`${file.name}-${index}`}
+                key={file.uri}
                 style={{ width: 64, height: 64, position: 'relative' }}
               >
                 {file.type.startsWith('image/') ? (

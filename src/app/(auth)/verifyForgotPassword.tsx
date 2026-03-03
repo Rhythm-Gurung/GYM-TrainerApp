@@ -104,7 +104,7 @@ export default function VerifyForgotPasswordPage() {
     const onSubmit = useCallback(
         async (data: VerifyEmailFormData) => {
             try {
-                const response = await verifyForgotPassword(data.email, data.code);
+                await verifyForgotPassword(data.email, data.code);
 
                 router.push({
                     pathname: '/(auth)/changePassword',

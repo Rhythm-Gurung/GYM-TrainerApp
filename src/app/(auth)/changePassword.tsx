@@ -5,7 +5,7 @@ import {
     useLocalSearchParams,
     useRouter,
 } from 'expo-router';
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
     Alert,
@@ -20,6 +20,7 @@ import {
     Button,
     InputField,
 } from '@/components/ui/formComponent';
+import { PasswordRequirements } from '@/components/ui/PasswordRequirements';
 import { useAuth } from '@/contexts/auth';
 import {
     type ChangePasswordFormData,
@@ -30,29 +31,26 @@ import {
 import { colors } from '@/constants/theme';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-const PASSWORD_REQUIREMENTS = [
-    'At least 8 characters',
-    'One uppercase letter (A-Z)',
-    'One lowercase letter (a-z)',
-    'One number (0-9)',
-] as const;
 
 export default function ChangePasswordPage() {
     const router = useRouter();
-    const { resetToken } = useLocalSearchParams<{ resetToken: string }>();
+    const { email } = useLocalSearchParams<{ email: string }>();
     const { changePassword } = useAuth();
+    const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
+    const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
 
     const {
         control,
         handleSubmit,
+        watch,
         formState: { errors, isSubmitting },
     } = useForm<ChangePasswordFormData>({
         resolver: zodResolver(changePasswordSchema),
         mode: 'onChange',
         defaultValues: {
+            email: email ?? '',
             newPassword: '',
             confirmNewPassword: '',
-            resetToken: resetToken ?? '',
         },
     });
 
@@ -122,8 +120,10 @@ export default function ChangePasswordPage() {
                                 label="New Password"
                                 placeholder="Enter new password"
                                 error={errors.newPassword?.message}
-                                secureTextEntry
+                                secureTextEntry={!isNewPasswordVisible}
                                 leftIcon="lock-closed-outline"
+                                rightIcon={isNewPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+                                onRightIconPress={() => setIsNewPasswordVisible((prev) => !prev)}
                                 autoComplete="password-new"
                             />
 
@@ -133,25 +133,17 @@ export default function ChangePasswordPage() {
                                 label="Confirm New Password"
                                 placeholder="Confirm new password"
                                 error={errors.confirmNewPassword?.message}
-                                secureTextEntry
+                                secureTextEntry={!isConfirmPasswordVisible}
                                 leftIcon="lock-closed-outline"
+                                rightIcon={isConfirmPasswordVisible ? 'eye-off-outline' : 'eye-outline'}
+                                onRightIconPress={() => setIsConfirmPasswordVisible((prev) => !prev)}
                                 autoComplete="password-new"
                             />
 
-                            <View className="mb-6 p-4 bg-surface-subtle rounded-lg">
-                                <Text className="text-foreground-2 font-medium mb-2">
-                                    Password must contain:
-                                </Text>
-                                <View className="space-y-1">
-                                    {PASSWORD_REQUIREMENTS.map((req) => (
-                                        <Text key={req} className="text-foreground-3 text-sm">
-                                            •
-                                            {' '}
-                                            {req}
-                                        </Text>
-                                    ))}
-                                </View>
-                            </View>
+                            <PasswordRequirements
+                                password={watch('newPassword')}
+                                showValidation={!!watch('newPassword')}
+                            />
 
                             <View className="items-center mt-8">
                                 <Button

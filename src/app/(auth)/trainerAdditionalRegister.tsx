@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
+import * as DocumentPicker from 'expo-document-picker';
+import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import React, { useCallback } from 'react';
+import { Controller, useForm, useWatch } from 'react-hook-form';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -11,38 +13,42 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FileUploadField } from '@/components/auth/FileUploadField';
 import { Button, InputField } from '@/components/ui/formComponent';
-import { getErrorMessage, showErrorToast, showSuccessToast } from '@/lib';
+import { colors, fontSize, radius, shadow } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
+import { getErrorMessage, showErrorToast } from '@/lib';
 import {
   type TrainerAdditionalDetailsFormData,
+  type TrainerAdditionalDetailsFormInputData,
   trainerAdditionalDetailsSchema,
 } from '@/schemas/trainer.schemas';
+import type { FileAsset } from '@/types/authTypes';
 import { EXPERTISE_CATEGORIES } from '@/types/trainerTypes';
 
-
-import { SafeAreaView } from 'react-native-safe-area-context';
+// ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TrainerAdditionalRegisterPage() {
   const router = useRouter();
-  const { email } = useLocalSearchParams<{
+  const { register: registerUser } = useAuth();
+  const { email, password, confirmPassword, reapply } = useLocalSearchParams<{
     email: string;
     password: string;
     confirmPassword: string;
+    reapply?: string;
   }>();
-
-  const [certificationsFileName, setCertificationsFileName] = useState<string>('');
-  const [idProofFileName, setIdProofFileName] = useState<string>('');
-  const [profileImageFileName, setProfileImageFileName] = useState<string>('');
+  const isReapply = reapply === '1';
 
   const {
     control,
     handleSubmit,
+    getValues,
     setValue,
-    watch,
+    resetField,
     formState: { errors, isSubmitting },
-  } = useForm<TrainerAdditionalDetailsFormData>({
+  } = useForm<TrainerAdditionalDetailsFormInputData, unknown, TrainerAdditionalDetailsFormData>({
     resolver: zodResolver(trainerAdditionalDetailsSchema),
     mode: 'onBlur',
     defaultValues: {
@@ -53,107 +59,202 @@ export default function TrainerAdditionalRegisterPage() {
       yearsOfExperience: 0,
       pricingPerSession: 0,
       sessionType: 'both',
+      profileImage: undefined,
+      idProof: undefined,
+      certifications: [],
     },
   });
 
-  // eslint-disable-next-line react-hooks/incompatible-library
-  const expertiseCategories = watch('expertiseCategories');
-  const sessionType = watch('sessionType');
+  const expertiseCategories = useWatch({ control, name: 'expertiseCategories' });
+  const sessionType = useWatch({ control, name: 'sessionType' });
+  const profileImage = useWatch({ control, name: 'profileImage' });
+  const idProof = useWatch({ control, name: 'idProof' });
+  const certifications = useWatch({ control, name: 'certifications' });
 
   const toggleExpertise = (category: string) => {
     const current = expertiseCategories || [];
     if (current.includes(category)) {
-      setValue(
-        'expertiseCategories',
-        current.filter((c) => c !== category)
-      );
+      setValue('expertiseCategories', current.filter((c) => c !== category));
     } else {
       setValue('expertiseCategories', [...current, category]);
     }
   };
 
-  const handleFileUpload = (type: 'certifications' | 'idProof' | 'profileImage') => {
-    // Placeholder for file upload logic
-    // In production, use expo-document-picker or expo-image-picker
-    const fileName = `${type}_${Date.now()}.pdf`;
-
-    switch (type) {
-      case 'certifications':
-        setCertificationsFileName(fileName);
-        break;
-      case 'idProof':
-        setIdProofFileName(fileName);
-        break;
-      case 'profileImage':
-        setProfileImageFileName(fileName);
-        break;
-      default:
-        // No action needed for unknown types
-        break;
+  const handlePickProfileImage = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      const file: FileAsset = {
+        uri: asset.uri,
+        name: asset.fileName ?? `profile_${Date.now()}.jpg`,
+        type: asset.mimeType ?? 'image/jpeg',
+        size: asset.fileSize,
+      };
+      setValue('profileImage', file, { shouldValidate: true });
     }
+  }, [setValue]);
 
-    showSuccessToast('File selected successfully', 'Success');
-  };
+  const handlePickIdProof = useCallback(async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const asset = result.assets[0];
+      const file: FileAsset = {
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType ?? 'application/octet-stream',
+        size: asset.size,
+      };
+      setValue('idProof', file, { shouldValidate: true });
+    }
+  }, [setValue]);
+
+  const handlePickCertifications = useCallback(async () => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: ['application/pdf', 'image/*'],
+      copyToCacheDirectory: true,
+      multiple: true,
+    });
+    if (!result.canceled && result.assets.length > 0) {
+      const files: FileAsset[] = result.assets.map((asset) => ({
+        uri: asset.uri,
+        name: asset.name,
+        type: asset.mimeType ?? 'application/octet-stream',
+        size: asset.size,
+      }));
+      const existing = getValues('certifications') ?? [];
+      setValue('certifications', [...existing, ...files], { shouldValidate: true });
+    }
+  }, [getValues, setValue]);
+
+  const handleRemoveCertification = useCallback(
+    (index: number) => {
+      const current = getValues('certifications') ?? [];
+      setValue(
+        'certifications',
+        current.filter((_, i) => i !== index),
+        { shouldValidate: true },
+      );
+    },
+    [getValues, setValue],
+  );
 
   const onSubmit = useCallback(
-    async () => {
+    async (data: TrainerAdditionalDetailsFormData) => {
       try {
-        // Placeholder: In production, this would call the trainer registration API
-        // For now, we'll show a success message and navigate to verification
-
-        // TODO: Implement actual trainer registration API call
-        // const response = await trainerService.register({
-        //   email,
-        //   password,
-        //   confirmPassword,
-        //   ...data,
-        //   certifications: certificationsFileName ? [{ uri: certificationsFileName, name: certificationsFileName, type: 'application/pdf' }] : undefined,
-        //   idProof: idProofFileName ? { uri: idProofFileName, name: idProofFileName, type: 'application/pdf' } : undefined,
-        //   profileImage: profileImageFileName ? { uri: profileImageFileName, name: profileImageFileName, type: 'image/jpeg' } : undefined,
-        // });
-
-        showSuccessToast(
-          'Please check your email to verify your account.',
-          'Registration Successful',
-        );
-
-        router.push({
-          pathname: '/(auth)/verifyEmail',
-          params: { email },
+        await registerUser({
+          email,
+          password,
+          confirmPassword,
+          username: data.fullName,
+          isTrainer: true,
+          fullName: data.fullName,
+          contactNo: data.contactNo,
+          bio: data.bio,
+          expertiseCategories: data.expertiseCategories,
+          yearsOfExperience: data.yearsOfExperience,
+          pricingPerSession: data.pricingPerSession,
+          sessionType: data.sessionType,
+          profileImage: data.profileImage,
+          idProof: data.idProof,
+          certifications: data.certifications,
         });
+        // Trainer registration does NOT trigger OTP — pending admin approval
+        router.replace('/(auth)/trainerPendingApproval');
       } catch (error) {
-        const errorMessage = getErrorMessage(
-          error,
-          'Registration failed. Please try again.',
-        );
+        const errorMessage = getErrorMessage(error, 'Registration failed. Please try again.');
         showErrorToast(errorMessage, 'Registration Failed');
       }
     },
-    [email, router],
+    [email, password, confirmPassword, registerUser, router],
   );
 
-  return (
-    <SafeAreaView className="flex-1 bg-background">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View className="flex-1 px-6 justify-center py-6">
-            <View className="mb-6">
-              <Text className="text-center text-heading font-bold text-foreground mb-4">
-                Trainer Details
-              </Text>
-              <Text className="text-center text-gray-light text-base mb-4">
-                Tell us more about your expertise
-              </Text>
-            </View>
+  const SESSION_TYPES = [
+    { type: 'online', icon: 'videocam-outline' },
+    { type: 'offline', icon: 'location-outline' },
+    { type: 'both', icon: 'globe-outline' },
+  ] as const;
 
-            <View className="mb-3">
-              {/* Personal Information */}
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }} keyboardShouldPersistTaps="handled">
+          <View style={{ paddingHorizontal: 24, paddingTop: 24, paddingBottom: 40 }}>
+
+            {/* ── Back button ─────────────────────────────────── */}
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 16 }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="arrow-back-outline" size={18} color={colors.textMuted} />
+              <Text style={{ fontSize: fontSize.tag, color: colors.textMuted, fontWeight: '500' }}>Back</Text>
+            </TouchableOpacity>
+
+            <View style={{ backgroundColor: colors.white, borderRadius: 24, padding: 24, ...shadow.cardStrong }}>
+
+              {/* ── Re-apply banner ─────────────────────────────── */}
+              {isReapply && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'flex-start',
+                    gap: 10,
+                    backgroundColor: colors.trainerSurface,
+                    borderRadius: 12,
+                    padding: 14,
+                    borderWidth: 1,
+                    borderColor: colors.trainerBorder,
+                    marginBottom: 20,
+                  }}
+                >
+                  <Ionicons name="refresh-circle-outline" size={20} color={colors.trainerPrimary} style={{ marginTop: 1 }} />
+                  <Text style={{ flex: 1, fontSize: fontSize.tag, color: colors.trainerPrimary, fontWeight: '600', lineHeight: 18 }}>
+                    Your previous application was rejected. Update your details and re-apply below.
+                  </Text>
+                </View>
+              )}
+
+              {/* ── Page header ─────────────────────────────────── */}
+              <View style={{ marginBottom: 28 }}>
+                <View
+                  style={{
+                    width: 52,
+                    height: 52,
+                    borderRadius: 16,
+                    backgroundColor: colors.trainerMuted,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: 20,
+                  }}
+                >
+                  <Ionicons name="id-card-outline" size={26} color={colors.trainerPrimary} />
+                </View>
+
+                {/* Step indicator */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <View style={{ width: 24, height: 4, borderRadius: 2, backgroundColor: colors.trainerPrimary }} />
+                  <View style={{ width: 24, height: 4, borderRadius: 2, backgroundColor: colors.trainerPrimary }} />
+                  <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, marginLeft: 6, fontWeight: '500' }}>
+                    Step 2 of 2
+                  </Text>
+                </View>
+
+                <Text style={{ fontSize: fontSize.header, fontWeight: '800', color: colors.textPrimary }}>
+                  Trainer Details
+                </Text>
+                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted, marginTop: 4, fontWeight: '500' }}>
+                  Tell us about your expertise
+                </Text>
+              </View>
+
+              {/* ── Personal information ─────────────────────────── */}
               <InputField
                 control={control}
                 name="fullName"
@@ -173,56 +274,70 @@ export default function TrainerAdditionalRegisterPage() {
                 leftIcon="call-outline"
               />
 
-              {/* Bio */}
-              <View className="mb-6">
+              {/* ── Bio ─────────────────────────────────────────── */}
+              <View style={{ marginBottom: 20 }}>
                 <Controller
                   control={control}
                   name="bio"
                   render={() => (
                     <View>
-                      <Text className="text-foreground-2 font-medium mb-2">Bio</Text>
+                      <Text style={{ fontSize: fontSize.tag, color: colors.textSecondary, fontWeight: '600', marginBottom: 8 }}>
+                        Bio
+                      </Text>
                       <View
-                        className={`border rounded-lg p-3 bg-white ${errors.bio ? 'border-error-light' : 'border-surface-border'
-                          }`}
+                        style={{
+                          borderWidth: 1,
+                          borderRadius: radius.md,
+                          borderColor: errors.bio ? colors.error : colors.surfaceBorder,
+                          backgroundColor: colors.white,
+                          padding: 12,
+                          minHeight: 96,
+                        }}
                       >
-                        <View className="border-0 text-foreground min-h-24">
-                          <InputField
-                            control={control}
-                            name="bio"
-                            label="Bio"
-                            placeholder="Tell us about your training philosophy and experience..."
-                            error={errors.bio?.message}
-                            multiline
-                            numberOfLines={4}
-                            textAlignVertical="top"
-                          />
-                        </View>
+                        <InputField
+                          control={control}
+                          name="bio"
+                          label="Bio"
+                          placeholder="Tell us about your training philosophy and experience..."
+                          error={errors.bio?.message}
+                          multiline
+                          numberOfLines={4}
+                          textAlignVertical="top"
+                        />
                       </View>
                     </View>
                   )}
                 />
               </View>
 
-              {/* Expertise Categories */}
-              <View className="mb-6">
-                <Text className="text-foreground-2 font-medium mb-2">
+              {/* ── Expertise categories ─────────────────────────── */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: fontSize.tag, color: colors.textSecondary, fontWeight: '600', marginBottom: 10 }}>
                   Expertise Categories
                 </Text>
-                <View className="flex-row flex-wrap gap-2">
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                   {EXPERTISE_CATEGORIES.map((category) => {
                     const isSelected = expertiseCategories?.includes(category);
                     return (
                       <TouchableOpacity
                         key={category}
                         onPress={() => toggleExpertise(category)}
-                        className={`px-4 py-2 rounded-full border ${isSelected
-                          ? 'bg-primary-btn border-primary-btn'
-                          : 'bg-white border-neutral'
-                          }`}
+                        activeOpacity={0.75}
+                        style={{
+                          paddingHorizontal: 14,
+                          paddingVertical: 7,
+                          borderRadius: radius.full,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? colors.trainerPrimary : colors.surfaceBorder,
+                          backgroundColor: isSelected ? colors.trainerMuted : colors.white,
+                        }}
                       >
                         <Text
-                          className={`${isSelected ? 'text-white' : 'text-foreground-2'
-                            } font-medium`}
+                          style={{
+                            fontSize: fontSize.tag,
+                            fontWeight: '600',
+                            color: isSelected ? colors.trainerPrimary : colors.textMuted,
+                          }}
                         >
                           {category}
                         </Text>
@@ -231,79 +346,70 @@ export default function TrainerAdditionalRegisterPage() {
                   })}
                 </View>
                 {errors.expertiseCategories && (
-                  <Text className="text-error text-sm mt-1">
+                  <Text style={{ fontSize: fontSize.caption, color: colors.error, marginTop: 6 }}>
                     {errors.expertiseCategories.message}
                   </Text>
                 )}
               </View>
 
-              {/* Years of Experience */}
-              <Controller
+              {/* ── Years of experience ──────────────────────────── */}
+              <InputField
                 control={control}
                 name="yearsOfExperience"
-                render={({ field: { onChange } }) => (
-                  <InputField
-                    control={control}
-                    name="yearsOfExperience"
-                    label="Years of Experience"
-                    placeholder="Years of Experience"
-                    error={errors.yearsOfExperience?.message}
-                    keyboardType="numeric"
-                    leftIcon="calendar-outline"
-                    onChangeText={(text) => onChange(parseInt(text, 10) || 0)}
-                  />
-                )}
+                label="Years of Experience"
+                placeholder="Years of Experience"
+                error={errors.yearsOfExperience?.message}
+                keyboardType="numeric"
+                leftIcon="calendar-outline"
               />
 
-              {/* Pricing Per Session */}
-              <Controller
+              {/* ── Pricing per session ──────────────────────────── */}
+              <InputField
                 control={control}
                 name="pricingPerSession"
-                render={({ field: { onChange } }) => (
-                  <InputField
-                    control={control}
-                    name="pricingPerSession"
-                    label="Pricing Per Session"
-                    placeholder="Pricing Per Session"
-                    error={errors.pricingPerSession?.message}
-                    keyboardType="numeric"
-                    leftIcon="cash-outline"
-                    onChangeText={(text) => onChange(parseFloat(text) || 0)}
-                  />
-                )}
+                label="Pricing Per Session"
+                placeholder="Pricing Per Session"
+                error={errors.pricingPerSession?.message}
+                keyboardType="numeric"
+                leftIcon="cash-outline"
               />
 
-              {/* Session Type */}
-              <View className="mb-6">
-                <Text className="text-foreground-2 font-medium mb-2">Session Type</Text>
-                <View className="flex-row gap-3">
-                  {(['online', 'offline', 'both'] as const).map((type) => {
-                    let iconName: keyof typeof Ionicons.glyphMap;
-                    if (type === 'online') {
-                      iconName = 'videocam-outline';
-                    } else if (type === 'offline') {
-                      iconName = 'location-outline';
-                    } else {
-                      iconName = 'globe-outline';
-                    }
-
+              {/* ── Session type ─────────────────────────────────── */}
+              <View style={{ marginBottom: 20 }}>
+                <Text style={{ fontSize: fontSize.tag, color: colors.textSecondary, fontWeight: '600', marginBottom: 10 }}>
+                  Session Type
+                </Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  {SESSION_TYPES.map(({ type, icon }) => {
+                    const isSelected = sessionType === type;
                     return (
                       <TouchableOpacity
                         key={type}
                         onPress={() => setValue('sessionType', type)}
-                        className={`flex-1 px-4 py-3 rounded-lg border items-center ${sessionType === type
-                          ? 'bg-primary-btn border-primary-btn'
-                          : 'bg-white border-neutral'
-                          }`}
+                        activeOpacity={0.75}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 14,
+                          borderRadius: radius.md,
+                          borderWidth: 1.5,
+                          borderColor: isSelected ? colors.trainerPrimary : colors.surfaceBorder,
+                          backgroundColor: isSelected ? colors.trainerMuted : colors.white,
+                          alignItems: 'center',
+                          gap: 6,
+                        }}
                       >
                         <Ionicons
-                          name={iconName}
-                          size={24}
-                          color={sessionType === type ? '#FFFFFF' : '#73C2FB'}
+                          name={icon}
+                          size={22}
+                          color={isSelected ? colors.trainerPrimary : colors.textDisabled}
                         />
                         <Text
-                          className={`mt-1 font-medium capitalize ${sessionType === type ? 'text-white' : 'text-foreground-2'
-                            }`}
+                          style={{
+                            fontSize: fontSize.caption,
+                            fontWeight: '600',
+                            color: isSelected ? colors.trainerPrimary : colors.textMuted,
+                            textTransform: 'capitalize',
+                          }}
                         >
                           {type}
                         </Text>
@@ -312,51 +418,56 @@ export default function TrainerAdditionalRegisterPage() {
                   })}
                 </View>
                 {errors.sessionType && (
-                  <Text className="text-error text-sm mt-1">
+                  <Text style={{ fontSize: fontSize.caption, color: colors.error, marginTop: 6 }}>
                     {errors.sessionType.message}
                   </Text>
                 )}
               </View>
 
-              {/* File Uploads */}
+              {/* ── File uploads ─────────────────────────────────── */}
               <FileUploadField
-                label="Certifications (Optional)"
-                onPress={() => handleFileUpload('certifications')}
-                fileName={certificationsFileName}
+                label="Profile Image *"
+                onPress={handlePickProfileImage}
+                files={profileImage ? [profileImage] : []}
+                onRemove={() => resetField('profileImage')}
+                error={(errors.profileImage as { message?: string } | undefined)?.message}
+              />
+
+              <FileUploadField
+                label="ID Proof *"
+                onPress={handlePickIdProof}
+                files={idProof ? [idProof] : []}
+                onRemove={() => resetField('idProof')}
+                error={(errors.idProof as { message?: string } | undefined)?.message}
+              />
+
+              <FileUploadField
+                label="Certifications * (min. 1)"
+                onPress={handlePickCertifications}
+                files={certifications ?? []}
+                onRemove={handleRemoveCertification}
+                error={(errors.certifications as { message?: string } | undefined)?.message}
                 multiple
               />
 
-              <FileUploadField
-                label="ID Proof (Optional)"
-                onPress={() => handleFileUpload('idProof')}
-                fileName={idProofFileName}
-              />
+              {/* ── Legal note ──────────────────────────────────── */}
+              <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, textAlign: 'center', lineHeight: 18, marginBottom: 24, marginTop: 8 }}>
+                {'By creating an account, you confirm you have read and accepted our '}
+                <Text style={{ color: colors.trainerPrimary, fontWeight: '600' }}>Privacy Policy</Text>
+                {' and '}
+                <Text style={{ color: colors.trainerPrimary, fontWeight: '600' }}>Terms of Use</Text>
+              </Text>
 
-              <FileUploadField
-                label="Profile Image (Optional)"
-                onPress={() => handleFileUpload('profileImage')}
-                fileName={profileImageFileName}
-              />
-            </View>
-
-            <Text className="text-center text-foreground-3 text-sm mb-6">
-              By creating an account, you confirm you have read and accepted our
-              {' '}
-              <Text className="text-primary-btn font-medium">Privacy Policy</Text>
-              {' '}
-              and
-              {' '}
-              <Text className="text-primary-btn font-medium">Terms of Use</Text>
-            </Text>
-
-            <View className="items-center mt-4">
+              {/* ── CTA ─────────────────────────────────────────── */}
               <Button
                 title="Finish"
                 onPress={handleSubmit(onSubmit)}
                 loading={isSubmitting}
-                width={250}
               />
+
             </View>
+            {' '}
+            {/* card */}
           </View>
         </ScrollView>
       </KeyboardAvoidingView>

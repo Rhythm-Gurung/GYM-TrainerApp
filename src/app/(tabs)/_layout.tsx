@@ -9,8 +9,6 @@ export default function TabLayout() {
             {/* Trainer routes - contains its own tab navigation */}
             <Stack.Screen name="trainer" />
 
-            {/* Admin/Management profile screens */}
-            <Stack.Screen name="profile" />
         </Stack>
     );
 }

@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
@@ -11,6 +10,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import HeroGradient from '@/components/ui/HeroGradient';
 import ReviewCard from '@/components/client/ReviewCard';
 import TrainerProfileCard from '@/components/client/TrainerProfileCard';
 import { colors, fontSize, gradientColors, radius } from '@/constants/theme';
@@ -94,19 +94,7 @@ export default function TrainerProfile() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Hero gradient */}
-                <LinearGradient
-                    colors={gradientColors.primary}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{
-                        height: 200,
-                        paddingTop: insets.top + 12,
-                        paddingHorizontal: 20,
-                        borderBottomLeftRadius: radius.hero,
-                        borderBottomRightRadius: radius.hero,
-                        overflow: 'hidden',
-                    }}
-                >
+                <HeroGradient gradient={gradientColors.primary} height={200} paddingTopExtra={12}>
                     {/* Back / Fav / Share row */}
                     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
                         <TouchableOpacity
@@ -162,7 +150,7 @@ export default function TrainerProfile() {
                             </TouchableOpacity>
                         </View>
                     </View>
-                </LinearGradient>
+                </HeroGradient>
 
                 {/* ── Content below hero ─────────────────────────────────── */}
                 <View style={{ paddingHorizontal: 20, marginTop: -28 }}>
@@ -369,7 +357,10 @@ export default function TrainerProfile() {
             >
                 <TouchableOpacity
                     onPress={() => {
-                        // TODO: Navigate to booking screen
+                        router.push({
+                            pathname: '/(tabs)/client/bookSession',
+                            params: { id: trainer.id },
+                        });
                     }}
                     activeOpacity={0.85}
                     style={{

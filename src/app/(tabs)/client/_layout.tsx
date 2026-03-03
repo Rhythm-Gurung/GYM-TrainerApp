@@ -139,6 +139,15 @@ export default function ClientTabLayout() {
                     tabBarStyle: { display: 'none' },
                 }}
             />
+            {/* Booking flow — navigated to from trainerProfile. Tab bar hidden. */}
+            <Tabs.Screen
+                name="bookSession"
+                options={{
+                    href: null,
+                    headerShown: false,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
         </Tabs>
     );
 }

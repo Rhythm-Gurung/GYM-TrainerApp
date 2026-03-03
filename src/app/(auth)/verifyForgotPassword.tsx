@@ -108,7 +108,7 @@ export default function VerifyForgotPasswordPage() {
 
                 router.push({
                     pathname: '/(auth)/changePassword',
-                    params: { resetToken: response.reset_token },
+                    params: { email: data.email },
                 });
             } catch (error) {
                 const axiosError = error as AxiosError<{

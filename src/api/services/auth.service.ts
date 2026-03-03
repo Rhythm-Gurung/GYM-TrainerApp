@@ -1,3 +1,5 @@
+import * as FileSystem from 'expo-file-system';
+
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type {
@@ -9,6 +11,12 @@ import type {
     UpdateProfileInput,
     User,
 } from '@/types/authTypes';
+
+async function toBase64(uri: string, mimeType: string): Promise<string> {
+    const file = new FileSystem.File(uri);
+    const base64 = await file.base64();
+    return `data:${mimeType};base64,${base64}`;
+}
 
 export const authService = {
     login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -30,8 +38,8 @@ export const authService = {
         return data;
     },
 
-    checkEmailExists: async (email: string): Promise<{ exists: boolean }> => {
-        const { data } = await apiClient.post<{ exists: boolean }>(
+    checkEmailExists: async (email: string): Promise<{ exists: boolean; can_reapply: boolean }> => {
+        const { data } = await apiClient.post<{ exists: boolean; can_reapply: boolean }>(
             API_CONFIG.ENDPOINTS.AUTH.CHECK_EMAIL,
             { email: email?.trim().toLowerCase() || '' },
         );
@@ -39,20 +47,50 @@ export const authService = {
     },
 
     register: async (input: RegisterInput): Promise<RegisterResponse> => {
+        if (!input.isTrainer) {
+            // Client registration — plain JSON
+            const { data } = await apiClient.post<RegisterResponse>(
+                API_CONFIG.ENDPOINTS.AUTH.REGISTER,
+                {
+                    email: input.email?.trim().toLowerCase() || '',
+                    password: input.password?.trim() || '',
+                    confirm_password: input.confirmPassword?.trim() || '',
+                    username: input.username?.trim() || '',
+                    is_trainer: false,
+                },
+            );
+            return data;
+        }
+
+        // Trainer registration — JSON with base64-encoded files
+        const [profileImageB64, idProofB64, ...certB64s] = await Promise.all([
+            input.profileImage
+                ? toBase64(input.profileImage.uri, input.profileImage.type)
+                : Promise.resolve(''),
+            input.idProof
+                ? toBase64(input.idProof.uri, input.idProof.type)
+                : Promise.resolve(''),
+            ...(input.certifications ?? []).map((cert) => toBase64(cert.uri, cert.type)),
+        ]);
+
         const { data } = await apiClient.post<RegisterResponse>(
             API_CONFIG.ENDPOINTS.AUTH.REGISTER,
             {
                 email: input.email?.trim().toLowerCase() || '',
                 password: input.password?.trim() || '',
                 confirm_password: input.confirmPassword?.trim() || '',
-                business_name: input.businessName?.trim() || '',
-                username: input.ownerName?.trim() || '',
-                address: input.address?.trim() || '',
-                pan_vat_no: input.panVatNo?.trim() || '',
+                username: input.username?.trim() || '',
+                is_trainer: true,
+                full_name: input.fullName?.trim() || '',
                 contact_no: input.contactNo?.trim() || '',
-                business_type: input.businessType?.trim() || '',
-                agree_company_policies: input.agreeCompanyPolicies,
-                receive_news: input.receiveNews,
+                bio: input.bio?.trim() || '',
+                years_of_experience: input.yearsOfExperience ?? 0,
+                pricing_per_session: input.pricingPerSession ?? 0,
+                session_type: input.sessionType ?? 'both',
+                expertise_categories: input.expertiseCategories ?? [],
+                profile_image: profileImageB64,
+                id_proof: idProofB64,
+                certifications: certB64s,
             },
         );
         return data;
@@ -109,11 +147,11 @@ export const authService = {
         input: ChangePasswordInput,
     ): Promise<{ message: string }> => {
         const { data } = await apiClient.post(
-            API_CONFIG.ENDPOINTS.AUTH.CHANGE_PASSWORD,
+            API_CONFIG.ENDPOINTS.AUTH.RESET_PASSWORD,
             {
+                email: input.email?.trim().toLowerCase() || '',
                 new_password: input.newPassword?.trim() || '',
                 confirm_new_password: input.confirmNewPassword?.trim() || '',
-                reset_token: input.resetToken?.trim() || '',
             },
         );
         return data;

@@ -32,9 +32,13 @@ const TYPE_ICON_COLOR: Record<NotificationType, string> = {
 export interface NotificationCardProps {
     notification: AppNotification;
     animX: SharedValue<number>;
+    /** Unread state colors — defaults to client (primary) palette */
+    unreadBg?: string;
+    unreadBorder?: string;
+    unreadDot?: string;
 }
 
-export default function NotificationCard({ notification, animX }: NotificationCardProps) {
+export default function NotificationCard({ notification, animX, unreadBg, unreadBorder, unreadDot }: NotificationCardProps) {
     const style = useAnimatedStyle(() => ({
         transform: [{ translateX: animX.value }],
     }));
@@ -53,9 +57,9 @@ export default function NotificationCard({ notification, animX }: NotificationCa
                     borderRadius: radius.card,
                     // Use solid opaque colors — semi-transparent + elevation causes
                     // black corner artifacts on Android.
-                    backgroundColor: notification.isRead ? colors.white : colors.primarySurface,
+                    backgroundColor: notification.isRead ? colors.white : (unreadBg ?? colors.primarySurface),
                     borderWidth: 1,
-                    borderColor: notification.isRead ? colors.surfaceBorder : colors.primaryBorderSm,
+                    borderColor: notification.isRead ? colors.surfaceBorder : (unreadBorder ?? colors.primaryBorderSm),
                 }}
             >
                 {/* Type icon */}
@@ -97,7 +101,7 @@ export default function NotificationCard({ notification, animX }: NotificationCa
                             width: 10,
                             height: 10,
                             borderRadius: 5,
-                            backgroundColor: colors.primary,
+                            backgroundColor: unreadDot ?? colors.primary,
                             flexShrink: 0,
                             marginTop: 4,
                         }}

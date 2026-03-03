@@ -26,6 +26,7 @@ module.exports = {
         'status-new':       '#22C55E',
         'status-updated':   '#F97316',
         'status-cancelled': '#EF4444',
+        'success-dark':     '#15803D', // green-700 – dark green CTA buttons
 
         // ── Legacy (keep for backwards compat) ───────────────────────────────
         'primary-btn':  '#73C2FB',
@@ -69,6 +70,14 @@ module.exports = {
         // ── Status backgrounds (icon containers) ─────────────────────────────
         'status-new-bg': '#DCFCE7',  // green-100  – success icon container
         'system-bg':     '#F3E8FF',  // purple-100 – system / info icon container
+
+        // ── Trainer brand (orange) ───────────────────────────────────────────
+        'trainer-primary':    '#F97316',               // orange-500 – trainer brand
+        'trainer-dark':       '#EA580C',               // orange-600 – gradient end
+        'trainer-muted':      'rgba(249,115,22,0.10)', // avatar bg, badge bg
+        'trainer-border':     'rgba(249,115,22,0.20)', // avatar ring
+        'trainer-border-sm':  'rgba(249,115,22,0.15)', // unread notification border
+        'trainer-surface':    '#FFF7ED',               // orange-50 – unread notification bg
 
         // ── Special ──────────────────────────────────────────────────────────
         'system':       '#6366F1',   // indigo-500 – system notification icons

@@ -57,3 +57,51 @@ export const EXPERTISE_CATEGORIES = [
 ] as const;
 
 export type ExpertiseCategory = (typeof EXPERTISE_CATEGORIES)[number];
+
+// Trainer Session (trainer-side view of a booking — shows client info)
+export interface TrainerSession {
+    id: string;
+    clientName: string;
+    clientId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    status: 'confirmed' | 'completed' | 'pending' | 'cancelled';
+    totalAmount: number;
+}
+
+// Earnings transaction (trainer-side)
+export interface Transaction {
+    id: string;
+    description: string;
+    amount: number; // positive for credit, negative for debit
+    type: 'credit' | 'debit';
+    date: string; // ISO date string YYYY-MM-DD
+}
+
+// Schedule / Availability types
+// ScheduleTimeSlot extends the registration TimeSlot with a UI-local `id`
+export interface ScheduleTimeSlot {
+    id: string;
+    startTime: string; // HH:MM
+    endTime: string; // HH:MM
+}
+
+export interface DaySchedule {
+    dayOfWeek: number; // 0 = Sunday … 6 = Saturday
+    enabled: boolean;
+    slots: ScheduleTimeSlot[];
+}
+
+// Trainer Profile
+export interface TrainerProfile {
+    id: string;
+    fullName: string;
+    email: string;
+    profileImage?: string;
+    rating: number;
+    reviews: number;
+    yearsOfExperience: number;
+    isVerified: boolean;
+    profileCompletion: number;
+}

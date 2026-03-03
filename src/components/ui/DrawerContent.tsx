@@ -85,7 +85,7 @@ export default function DrawerContent(props: DrawerContentComponentProps) {
                         icon="clipboard-outline"
                         label="Reports"
                         onPress={() => {
-                            router.push('/(tabs)/profile');
+                            // TODO: Navigate to reports
                         }}
                     />
                     <DrawerItem

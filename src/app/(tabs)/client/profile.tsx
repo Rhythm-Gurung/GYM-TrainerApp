@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -16,8 +15,9 @@ import Animated, {
     withDelay,
     withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import HeroGradient from '@/components/ui/HeroGradient';
 import { useAuth } from '@/contexts/auth';
 import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
@@ -54,7 +54,6 @@ const DUR = 350;
 export default function ClientProfile() {
     const router = useRouter();
     const tabBarHeight = useTabBarHeight();
-    const insets = useSafeAreaInsets();
     const { authState, logout, getProfile } = useAuth();
     const [userData, setUserData] = useState<User | null>(authState.user);
     const [isLoading, setIsLoading] = useState(false);
@@ -140,23 +139,11 @@ export default function ClientProfile() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Hero Section */}
-                <LinearGradient
-                    colors={gradientColors.primary}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{
-                        paddingHorizontal: 20,
-                        paddingTop: insets.top + 24,
-                        paddingBottom: 120,
-                        borderBottomLeftRadius: radius.hero,
-                        borderBottomRightRadius: radius.hero,
-                        overflow: 'hidden',
-                    }}
-                >
+                <HeroGradient gradient={gradientColors.primary} paddingBottom={120}>
                     <Text style={{ fontSize: fontSize.pageTitle, fontWeight: '800', color: colors.white }}>
                         My Profile
                     </Text>
-                </LinearGradient>
+                </HeroGradient>
 
                 <View style={{ paddingHorizontal: 20, marginTop: -48 }}>
                     {/* Profile Card */}

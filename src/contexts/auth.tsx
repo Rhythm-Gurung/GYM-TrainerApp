@@ -20,7 +20,6 @@ import {
     type UpdateProfileInput,
     type User,
 } from '@/types/authTypes';
-import { type TrainerRegisterInput, type TrainerRegisterResponse } from '@/types/trainerTypes';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -157,16 +156,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         [],
     );
 
-    const registerTrainer = useCallback(
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        async (_data: TrainerRegisterInput): Promise<TrainerRegisterResponse> =>
-            // Placeholder for trainer registration
-            // This will be implemented when the backend endpoint is ready
-            // For now, return a mock response
-            ({ detail: 'Trainer registration successful', status: true }),
-        [],
-    );
-
     const logout = useCallback(async (): Promise<void> => {
         try {
             const accessToken = await AsyncStorage.getItem('access_token');
@@ -241,7 +230,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             login,
             googleLogin,
             register,
-            registerTrainer,
             logout,
             forgotPassword,
             verifyEmail,
@@ -258,7 +246,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             login,
             googleLogin,
             register,
-            registerTrainer,
             logout,
             forgotPassword,
             verifyEmail,

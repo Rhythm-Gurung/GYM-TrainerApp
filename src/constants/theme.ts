@@ -29,6 +29,7 @@ export const colors = {
     // Status
     error: '#EF4444',
     success: '#22C55E',
+    successDark: '#15803D', // green-700 – dark green CTA buttons
     warning: '#F97316',
 
     // Text scale
@@ -62,6 +63,16 @@ export const colors = {
     system: '#6366F1', // indigo-500 – system notification icon
     systemBg: 'rgba(99,102,241,0.10)', // system icon container bg
 
+    // Trainer brand (orange)
+    trainerPrimary: '#F97316', // orange-500
+    trainerDark: '#EA580C', // orange-600
+    trainerMuted: 'rgba(249,115,22,0.10)', // avatar bg, badge bg
+    trainerBorder: 'rgba(249,115,22,0.20)', // avatar ring
+    trainerBorderSm: 'rgba(249,115,22,0.15)', // unread notification border
+    // Solid equivalent of trainerMuted — use instead of rgba on Android
+    // (elevation + semi-transparent bg causes black corner artifacts)
+    trainerSurface: '#FFF7ED', // orange-50 – unread notification bg
+
     // Status backgrounds (solid, for light-mode icon containers)
     statusNewBg: '#DCFCE7', // green-100 – success icon container
 
@@ -86,6 +97,7 @@ export const colors = {
 
 export const gradientColors = {
     primary: [colors.primary, colors.primaryDark] as [string, string],
+    trainer: [colors.trainerPrimary, colors.trainerDark] as [string, string],
 } as const;
 
 // ─── Font sizes ──────────────────────────────────────────────────────────────
@@ -147,6 +159,14 @@ export const shadow = {
     /** Primary-tinted – camera button, primary FABs */
     primary: {
         shadowColor: '#547792',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.40,
+        shadowRadius: 4,
+        elevation: 3,
+    },
+    /** Trainer-tinted – trainer camera button */
+    trainer: {
+        shadowColor: '#F97316',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.40,
         shadowRadius: 4,

@@ -11,7 +11,7 @@ export const trainerRegisterSchema = z
       .string()
       .min(1, 'Password is required')
       .min(8, 'Password must be at least 8 characters')
-      .max(10, 'Password must not exceed 10 characters')
+      .max(20, 'Password must not exceed 20 characters')
       .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
       .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number')
@@ -22,6 +22,13 @@ export const trainerRegisterSchema = z
     message: 'Passwords do not match',
     path: ['confirmPassword'],
   });
+
+const fileAssetSchema = z.object({
+  uri: z.string().min(1),
+  name: z.string().min(1),
+  type: z.string().min(1),
+  size: z.number().optional(),
+});
 
 // Trainer Additional Details Schema (Step 2 - trainer-specific details)
 export const trainerAdditionalDetailsSchema = z.object({
@@ -39,18 +46,25 @@ export const trainerAdditionalDetailsSchema = z.object({
     .array(z.string())
     .min(1, 'Please select at least one expertise category'),
   yearsOfExperience: z
-    .number()
+    .coerce.number()
     .min(0, 'Years of experience cannot be negative')
     .max(50, 'Years of experience seems too high'),
   pricingPerSession: z
-    .number()
+    .coerce.number()
     .min(1, 'Price per session must be at least 1')
     .max(100000, 'Price per session seems too high'),
   sessionType: z.enum(['online', 'offline', 'both'], {
-    errorMap: () => ({ message: 'Please select a session type' }),
+    message: 'Please select a session type',
   }),
+  profileImage: fileAssetSchema.refine((v) => !!v?.uri, { message: 'Profile image is required' }),
+  idProof: fileAssetSchema.refine((v) => !!v?.uri, { message: 'ID proof is required' }),
+  certifications: z
+    .array(fileAssetSchema)
+    .min(1, 'At least one certification is required'),
 });
 
 // Export types from schemas
 export type TrainerRegisterFormData = z.infer<typeof trainerRegisterSchema>;
 export type TrainerAdditionalDetailsFormData = z.infer<typeof trainerAdditionalDetailsSchema>;
+export type TrainerAdditionalDetailsFormInputData = z.input<typeof trainerAdditionalDetailsSchema>;
+export type FileAssetFormData = z.infer<typeof fileAssetSchema>;

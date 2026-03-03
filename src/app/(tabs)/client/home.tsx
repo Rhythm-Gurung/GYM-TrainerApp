@@ -1,5 +1,4 @@
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef } from 'react';
 import {
@@ -14,8 +13,9 @@ import Animated, {
     withDelay,
     withTiming,
 } from 'react-native-reanimated';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
+import HeroGradient from '@/components/ui/HeroGradient';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerCard from '@/components/client/TrainerCard';
 import { colors, fontSize, gradientColors, radius } from '@/constants/theme';
@@ -39,7 +39,6 @@ const DUR = 300;
 
 export default function ClientHome() {
     const router = useRouter();
-    const insets = useSafeAreaInsets();
     const tabBarHeight = useTabBarHeight();
     const greeting = getGreeting();
 
@@ -89,19 +88,7 @@ export default function ClientHome() {
                 showsVerticalScrollIndicator={false}
             >
                 {/* Hero / Header */}
-                <LinearGradient
-                    colors={gradientColors.primary}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={{
-                        paddingHorizontal: 20,
-                        paddingTop: insets.top + 20,
-                        paddingBottom: 36,
-                        borderBottomLeftRadius: radius.hero,
-                        borderBottomRightRadius: radius.hero,
-                        overflow: 'hidden',
-                    }}
-                >
+                <HeroGradient gradient={gradientColors.primary} paddingTopExtra={20} paddingBottom={36}>
                     {/* Greeting row */}
                     <View className="flex-row items-center justify-between mb-6">
                         <View>
@@ -171,7 +158,7 @@ export default function ClientHome() {
                         </Text>
                         <Ionicons name="options-outline" size={16} color={colors.white60} />
                     </TouchableOpacity>
-                </LinearGradient>
+                </HeroGradient>
 
                 {/* Content */}
                 <View style={{ paddingHorizontal: 20, marginTop: 20, overflow: 'visible' }}>

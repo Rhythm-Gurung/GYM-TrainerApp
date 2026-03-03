@@ -134,6 +134,11 @@ export default function TrainerTabLayout() {
                     tabBarLabel: 'Profile',
                 }}
             />
+            {/* Hidden screens — no tab bar entry */}
+            <Tabs.Screen
+                name="notifications"
+                options={{ href: null, headerShown: false }}
+            />
         </Tabs>
     );
 }

@@ -15,8 +15,10 @@ import {
 import Animated, { FadeIn, FadeInDown } from "react-native-reanimated";
 import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-native-responsive-screen';
 import { SafeAreaView } from "react-native-safe-area-context";
-import iconImage from '../../assets/images/icon.webp';
-import logoImage from '../../assets/images/logo.webp';
+// import iconImage from '../../assets/images/icon.webp';
+// import logoImage from '../../assets/images/logo.webp';
+import logoImage from '../../assets/images/gym.png';
+import iconImage from '../../assets/images/gym1.png';
 
 
 
@@ -184,7 +186,7 @@ function OnboardingScreen() {
                         source={logoImage}
                         style={{
                             width: isTablet ? wp('60%') : wp('80%'),
-                            height: isTablet ? hp('15%') : hp('12%'),
+                            height: isTablet ? hp('20%') : hp('24%'),
                             marginBottom: hp('8%')
                         }}
                         resizeMode="contain"

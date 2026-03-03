@@ -34,6 +34,7 @@ const PUBLIC_AUTH_ENDPOINTS = [
     '/api/system/auth/verify-forgot-password/',
     '/api/system/auth/resend-verification-code/',
     '/api/system/auth/change-password/',
+    '/api/system/auth/check-email/',
 ];
 
 // Check if URL is a public auth endpoint (should not have auth header)
@@ -55,7 +56,8 @@ apiClient.interceptors.request.use(
         }
 
         // Ensure Content-Type is set for POST/PUT/PATCH requests
-        if (config.data && config.headers) {
+        // Skip FormData — let axios/platform set the correct multipart boundary automatically
+        if (config.data && config.headers && !(config.data instanceof FormData)) {
             // eslint-disable-next-line no-param-reassign
             config.headers['Content-Type'] = 'application/json';
         }

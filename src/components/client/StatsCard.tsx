@@ -7,9 +7,11 @@ interface StatsCardProps {
     title: string;
     value: string;
     icon: keyof typeof Ionicons.glyphMap;
+    iconColor?: string;
+    iconBg?: string;
 }
 
-export default function StatsCard({ title, value, icon }: StatsCardProps) {
+export default function StatsCard({ title, value, icon, iconColor, iconBg }: StatsCardProps) {
     return (
         <View
             className="flex-1 bg-white rounded-2xl p-4 items-center border border-surface"
@@ -20,13 +22,13 @@ export default function StatsCard({ title, value, icon }: StatsCardProps) {
                     width: 36,
                     height: 36,
                     borderRadius: radius.sm,
-                    backgroundColor: colors.primaryLight,
+                    backgroundColor: iconBg ?? colors.primaryLight,
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginBottom: 8,
                 }}
             >
-                <Ionicons name={icon} size={18} color={colors.primary} />
+                <Ionicons name={icon} size={18} color={iconColor ?? colors.primary} />
             </View>
             <Text style={{ fontSize: fontSize.stat, fontWeight: '800', color: colors.textPrimary, lineHeight: 22 }}>
                 {value}

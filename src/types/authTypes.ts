@@ -1,5 +1,3 @@
-import type { TrainerRegisterInput, TrainerRegisterResponse } from './trainerTypes';
-
 // Auth API Response Types
 export interface LoginResponse {
   tokens: {
@@ -26,6 +24,7 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  is_trainer: boolean;
   business_name?: string;
   profile_image?: string;
   role?: 'client' | 'trainer';
@@ -50,7 +49,6 @@ export interface AuthContextType {
   login: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResponse>;
   googleLogin: (idToken: string) => Promise<GoogleLoginResponse>;
   register: (data: RegisterInput) => Promise<RegisterResponse>;
-  registerTrainer: (data: TrainerRegisterInput) => Promise<TrainerRegisterResponse>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ message: string }>;
   verifyEmail: (email: string, code: string) => Promise<{ message: string }>;
@@ -71,18 +69,32 @@ export interface LoginInput {
   password: string;
 }
 
+// A file asset returned by expo-document-picker / expo-image-picker
+export interface FileAsset {
+  uri: string;
+  name: string;
+  type: string;
+  size?: number;
+}
+
 export interface RegisterInput {
+  // Common fields
   email: string;
   password: string;
   confirmPassword: string;
-  businessName: string;
-  ownerName: string;
-  address: string;
-  panVatNo: string;
-  contactNo: string;
-  businessType: string;
-  agreeCompanyPolicies: boolean;
-  receiveNews: boolean;
+  username: string;
+  isTrainer: boolean;
+  // Trainer-only fields (required when isTrainer = true)
+  fullName?: string;
+  contactNo?: string;
+  bio?: string;
+  expertiseCategories?: string[];
+  yearsOfExperience?: number;
+  pricingPerSession?: number;
+  sessionType?: 'online' | 'offline' | 'both';
+  profileImage?: FileAsset;
+  idProof?: FileAsset;
+  certifications?: FileAsset[];
 }
 
 export interface ForgotPasswordInput {
@@ -95,9 +107,9 @@ export interface VerifyEmailInput {
 }
 
 export interface ChangePasswordInput {
+  email: string;
   newPassword: string;
   confirmNewPassword: string;
-  resetToken: string;
 }
 
 export interface UpdateProfileInput {

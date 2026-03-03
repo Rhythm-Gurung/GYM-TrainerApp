@@ -1,19 +1,20 @@
 import { RoleSelectorCard } from '@/components/auth/RoleSelectorCard';
 import { isTablet } from '@/constants/responsive';
+import { colors } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { Image, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui/formComponent';
-import iconImage from '../../../assets/images/icon.webp';
 
-
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import {
   heightPercentageToDP as hp,
   widthPercentageToDP as wp,
 } from 'react-native-responsive-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import iconImage from '@/../assets/images/gym1.png';
 
 type UserRole = 'client' | 'trainer' | null;
 
@@ -23,12 +24,9 @@ export default function RoleSelectionScreen() {
 
   const handleContinue = () => {
     if (!selectedRole) return;
-
     if (selectedRole === 'client') {
-      // Navigate to normal client registration
       router.push('/(auth)/register');
     } else {
-      // Navigate to trainer registration
       router.push('/(auth)/trainerRegister');
     }
   };
@@ -38,74 +36,88 @@ export default function RoleSelectionScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-background" edges={['top', 'bottom']}>
+      {/* Accent bar */}
       <Animated.View
         entering={FadeIn.duration(600)}
         className="flex-1"
         style={{
-          paddingHorizontal: isTablet ? wp('15%') : wp('8%'),
-          paddingTop: hp('4%'),
+          paddingHorizontal: isTablet ? wp('15%') : wp('6%'),
+          paddingTop: hp('3%'),
         }}
       >
-        {/* Icon */}
-        <View className="items-center" style={{ marginBottom: hp('4%') }}>
-          <Image
-            source={iconImage}
-            style={{
-              width: isTablet ? wp('15%') : wp('20%'),
-              height: isTablet ? wp('15%') : wp('20%'),
-            }}
-            resizeMode="contain"
-          />
-        </View>
-
-        {/* Header */}
+        {/* Logo + Header */}
         <Animated.View
-          entering={FadeInDown.delay(200).duration(500)}
-          style={{ marginBottom: hp('2%') }}
+          entering={FadeInDown.delay(100).duration(500)}
+          style={{ alignItems: 'center', marginBottom: hp('5%') }}
         >
+          {/* Icon in a tinted circle */}
+          <View>
+            <Image
+              source={iconImage}
+              style={{
+                width: isTablet ? wp('12%') : wp('16%'),
+                height: isTablet ? wp('12%') : wp('16%'),
+              }}
+              resizeMode="contain"
+            />
+          </View>
+
           <Text
-            className="text-foreground font-bold text-center"
-            style={{ fontSize: isTablet ? wp('4%') : wp('6.5%') }}
+            style={{
+              color: colors.textPrimary,
+              fontWeight: '800',
+              fontSize: isTablet ? wp('4%') : wp('7%'),
+              textAlign: 'center',
+              letterSpacing: -0.5,
+              marginBottom: hp('1%'),
+            }}
           >
-            Choose Your Role
+            Join as...
           </Text>
           <Text
-            className="text-foreground-3 text-center mt-2"
-            style={{ fontSize: isTablet ? wp('2.5%') : wp('4%') }}
+            style={{
+              color: colors.textMuted,
+              fontSize: isTablet ? wp('2.2%') : wp('3.8%'),
+              textAlign: 'center',
+            }}
           >
-            Select how you want to continue with SETu
+            Pick your role to get started
           </Text>
         </Animated.View>
 
         {/* Role Cards */}
         <Animated.View
-          entering={FadeInDown.delay(400).duration(500)}
-          style={{ flex: 1, marginTop: hp('3%') }}
+          entering={FadeInDown.delay(300).duration(500)}
+          style={{ flex: 1 }}
         >
           <RoleSelectorCard
-            title="Continue as Client"
-            description="Find and book the best trainers for your fitness journey"
+            title="I'm a Client"
+            description="Discover trainers, book sessions, and crush your fitness goals"
             icon="person-outline"
             onPress={() => setSelectedRole('client')}
             selected={selectedRole === 'client'}
+            accentColor={colors.primaryBtn}
+            accentBg={colors.actionBg}
+            badge="Most Popular"
           />
 
           <RoleSelectorCard
-            title="Continue as Trainer"
-            description="Share your expertise and help clients achieve their fitness goals"
+            title="I'm a Trainer"
+            description="Create your profile, manage your schedule, and grow your client base"
             icon="barbell-outline"
             onPress={() => setSelectedRole('trainer')}
             selected={selectedRole === 'trainer'}
+            accentColor={colors.trainerPrimary}
+            accentBg={colors.trainerSurface}
           />
         </Animated.View>
 
-        {/* Continue Button */}
+        {/* CTA */}
         <Animated.View
-          entering={FadeInDown.delay(600).duration(500)}
-          className="items-center"
+          entering={FadeInUp.delay(500).duration(500)}
           style={{
-            paddingBottom: hp('3%'),
+            paddingBottom: hp('2%'),
             gap: hp('1.5%'),
           }}
         >
@@ -113,18 +125,20 @@ export default function RoleSelectionScreen() {
             title="Continue"
             onPress={handleContinue}
             disabled={!selectedRole}
-            width={isTablet ? wp('50%') : wp('75%')}
+            width={isTablet ? wp('70%') : wp('88%')}
           />
 
-          {/* Back to Login */}
           <Text
-            className="text-foreground-3 text-center"
-            style={{ fontSize: isTablet ? wp('2.3%') : wp('3.8%') }}
+            style={{
+              color: colors.textMuted,
+              textAlign: 'center',
+              fontSize: isTablet ? wp('2.3%') : wp('3.8%'),
+            }}
           >
             Already have an account?
-{' '}
+            {' '}
             <Text
-              className="text-primary-btn font-medium"
+              style={{ color: colors.primaryBtn, fontWeight: '600' }}
               onPress={handleBackToLogin}
             >
               Sign In

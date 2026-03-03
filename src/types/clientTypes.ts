@@ -66,3 +66,15 @@ export interface EarningsSummary {
     commissionRate: number;
     commissionPaid: number;
 }
+
+export interface BookingRequest {
+    trainerId: string;
+    trainerName: string;
+    /** One or more session dates (ISO YYYY-MM-DD). Multi-day sends all selected dates. */
+    dates: string[];
+    sessionCount: number;
+    startTime: string;
+    endTime: string;
+    totalAmount: number;
+    notes?: string;
+}

@@ -1,5 +1,3 @@
-import * as FileSystem from 'expo-file-system';
-
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type {
@@ -11,12 +9,6 @@ import type {
     UpdateProfileInput,
     User,
 } from '@/types/authTypes';
-
-async function toBase64(uri: string, mimeType: string): Promise<string> {
-    const file = new FileSystem.File(uri);
-    const base64 = await file.base64();
-    return `data:${mimeType};base64,${base64}`;
-}
 
 export const authService = {
     login: async (email: string, password: string): Promise<LoginResponse> => {
@@ -62,36 +54,50 @@ export const authService = {
             return data;
         }
 
-        // Trainer registration — JSON with base64-encoded files
-        const [profileImageB64, idProofB64, ...certB64s] = await Promise.all([
-            input.profileImage
-                ? toBase64(input.profileImage.uri, input.profileImage.type)
-                : Promise.resolve(''),
-            input.idProof
-                ? toBase64(input.idProof.uri, input.idProof.type)
-                : Promise.resolve(''),
-            ...(input.certifications ?? []).map((cert) => toBase64(cert.uri, cert.type)),
-        ]);
+        // Trainer registration — multipart/form-data
+        const formData = new FormData();
+        formData.append('email', input.email?.trim().toLowerCase() || '');
+        formData.append('password', input.password?.trim() || '');
+        formData.append('confirm_password', input.confirmPassword?.trim() || '');
+        formData.append('username', input.username?.trim() || '');
+        formData.append('is_trainer', 'true');
+        formData.append('full_name', input.fullName?.trim() || '');
+        formData.append('contact_no', input.contactNo?.trim() || '');
+        formData.append('bio', input.bio?.trim() || '');
+        formData.append('years_of_experience', String(input.yearsOfExperience ?? 0));
+        formData.append('pricing_per_session', String(input.pricingPerSession ?? 0));
+        formData.append('session_type', input.sessionType ?? 'both');
+        // expertise_categories sent as a JSON string e.g. ["yoga","cardio"]
+        formData.append('expertise_categories', JSON.stringify(input.expertiseCategories ?? []));
+
+        if (input.profileImage) {
+            formData.append('profile_image', {
+                uri: input.profileImage.uri,
+                name: input.profileImage.name,
+                type: input.profileImage.type,
+            } as unknown as Blob);
+        }
+
+        if (input.idProof) {
+            formData.append('id_proof', {
+                uri: input.idProof.uri,
+                name: input.idProof.name,
+                type: input.idProof.type,
+            } as unknown as Blob);
+        }
+
+        // Repeat 'certifications' key for each file (no array indexing)
+        (input.certifications ?? []).forEach((cert) => {
+            formData.append('certifications', {
+                uri: cert.uri,
+                name: cert.name,
+                type: cert.type,
+            } as unknown as Blob);
+        });
 
         const { data } = await apiClient.post<RegisterResponse>(
             API_CONFIG.ENDPOINTS.AUTH.REGISTER,
-            {
-                email: input.email?.trim().toLowerCase() || '',
-                password: input.password?.trim() || '',
-                confirm_password: input.confirmPassword?.trim() || '',
-                username: input.username?.trim() || '',
-                is_trainer: true,
-                full_name: input.fullName?.trim() || '',
-                contact_no: input.contactNo?.trim() || '',
-                bio: input.bio?.trim() || '',
-                years_of_experience: input.yearsOfExperience ?? 0,
-                pricing_per_session: input.pricingPerSession ?? 0,
-                session_type: input.sessionType ?? 'both',
-                expertise_categories: input.expertiseCategories ?? [],
-                profile_image: profileImageB64,
-                id_proof: idProofB64,
-                certifications: certB64s,
-            },
+            formData,
         );
         return data;
     },

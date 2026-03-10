@@ -21,14 +21,31 @@ export interface RegisterResponse {
 }
 
 export interface User {
-  id: string;
+  id: number;
+  uuid?: string;
   email: string;
   username: string;
-  is_trainer: boolean;
-  business_name?: string;
+  first_name?: string;
+  last_name?: string;
+  full_name?: string;
   profile_image?: string;
+  dob?: string;
+  is_email_verified?: boolean;
+  is_trainer: boolean;
   role?: 'client' | 'trainer';
-  // Add other user fields as needed
+  contact_no?: string;
+  bio?: string;
+  expertise_categories?: string;
+  years_of_experience?: number;
+  pricing_per_session?: string;
+  session_type?: 'online' | 'offline' | 'both';
+  id_proof_url?: string | null;
+  is_active?: boolean;
+  is_receiving_promotional_email?: boolean;
+  agreed_to_policies?: boolean;
+  social_provider?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface AuthState {

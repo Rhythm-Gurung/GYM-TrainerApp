@@ -28,7 +28,7 @@ import { getClientMenuItems } from '@/types/profile/clientMenuItems';
 const PROFILE_FIELDS: (keyof User)[] = [
     'email',
     'username',
-    'business_name',
+    'full_name',
     'profile_image',
     'role',
 ];
@@ -40,7 +40,7 @@ function computeProfileCompletion(user: User | null): number {
 }
 
 function getInitials(user: User | null): string {
-    const name = user?.business_name ?? user?.username ?? user?.email ?? '';
+    const name = user?.full_name ?? user?.username ?? user?.email ?? '';
     return name
         .split(' ')
         .map((word) => word[0]?.toUpperCase() ?? '')
@@ -119,7 +119,7 @@ export default function ClientProfile() {
     const menuItems = getClientMenuItems(router);
     const profileCompletion = computeProfileCompletion(userData);
     const initials = getInitials(userData);
-    const displayName = userData?.business_name ?? userData?.username ?? 'User';
+    const displayName = userData?.full_name ?? userData?.username ?? 'User';
     const displayEmail = userData?.email ?? '';
 
     if (isLoading && !userData) {

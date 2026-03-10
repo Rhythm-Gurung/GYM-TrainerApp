@@ -93,7 +93,7 @@ export interface DaySchedule {
     slots: ScheduleTimeSlot[];
 }
 
-// Trainer Profile
+// Trainer Profile (local computed/display shape)
 export interface TrainerProfile {
     id: string;
     fullName: string;
@@ -104,4 +104,26 @@ export interface TrainerProfile {
     yearsOfExperience: number;
     isVerified: boolean;
     profileCompletion: number;
+}
+
+// API response types for trainer documents
+export interface IdProofResponse {
+    id: number;
+    image: string;
+    uploaded_at?: string;
+}
+
+export interface CertificationListItem {
+    id: number;
+    name: string;
+    content_type: string;
+    created_at: string;
+    image_url: string;
+}
+
+export interface CertificationDetail {
+    id: number;
+    image: string;
+    title?: string;
+    uploaded_at?: string;
 }

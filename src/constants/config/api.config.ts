@@ -22,6 +22,8 @@ export const API_CONFIG = {
             REGISTER: '/api/system/auth/register/',
             UPDATE_PROFILE: '/api/trainer/update-profile/',
             GET_PROFILE: '/api/trainer/profile/',
+            ID_PROOF: '/api/system/trainer/id-proof/',
+            CERTIFICATIONS: '/api/system/trainer/certifications/',
         },
         TOKEN: {
             REFRESH: '/api/token/refresh/',

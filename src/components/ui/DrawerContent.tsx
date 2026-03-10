@@ -1,10 +1,10 @@
+import { colors } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import type { DrawerContentComponentProps } from '@react-navigation/drawer';
 import { DrawerContentScrollView } from '@react-navigation/drawer';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
-import { colors } from '@/constants/theme';
 
 interface DrawerItemProps {
     icon: keyof typeof Ionicons.glyphMap;
@@ -58,7 +58,7 @@ export default function DrawerContent(props: DrawerContentComponentProps) {
                         <Ionicons name="search-outline" size={20} color={colors.textSubtle} />
                         <TextInput
                             placeholder="Search"
-                            placeholderTextcolor={colors.textSubtle}
+                            placeholderTextColor={colors.textSubtle}
                             className="ml-2 flex-1 text-base text-foreground"
                         />
                     </View>
@@ -70,14 +70,14 @@ export default function DrawerContent(props: DrawerContentComponentProps) {
                         icon="car-outline"
                         label="Respond Order"
                         onPress={() => {
-                            router.push('/(tabs)/menu');
+                            router.push('/(tabs)/menu' as never);
                         }}
                     />
                     <DrawerItem
                         icon="chatbubble-outline"
                         label="Product Quotation"
                         onPress={() => {
-                            router.push('/(tabs)/favorite');
+                            router.push('/(tabs)/favorite' as never);
                         }}
                         showChevron
                     />

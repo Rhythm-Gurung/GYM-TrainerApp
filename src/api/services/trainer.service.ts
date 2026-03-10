@@ -1,6 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type {
+  CertificationListItem,
   TrainerRegisterInput,
   TrainerRegisterResponse,
 } from '@/types/trainerTypes';
@@ -27,19 +28,18 @@ export const trainerService = {
     formData.append('years_of_experience', input.yearsOfExperience.toString());
     formData.append('pricing_per_session', input.pricingPerSession.toString());
     formData.append('session_type', input.sessionType);
-    formData.append('role', 'trainer');
+    formData.append('is_trainer', 'true');
 
-    // Add expertise categories as array
-    if (input.expertiseCategories && input.expertiseCategories.length > 0) {
-      input.expertiseCategories.forEach((category) => {
-        formData.append('expertise_categories[]', category);
-      });
-    }
+    // expertise_categories sent as a JSON string e.g. ["yoga","cardio"]
+    formData.append(
+      'expertise_categories',
+      JSON.stringify(input.expertiseCategories ?? []),
+    );
 
-    // Add file uploads if present
+    // Repeat 'certifications' key for each file (no array indexing)
     if (input.certifications && input.certifications.length > 0) {
-      input.certifications.forEach((cert, index) => {
-        formData.append(`certifications[${index}]`, {
+      input.certifications.forEach((cert) => {
+        formData.append('certifications', {
           uri: cert.uri,
           name: cert.name,
           type: cert.type,
@@ -71,11 +71,6 @@ export const trainerService = {
     const { data } = await apiClient.post<TrainerRegisterResponse>(
       API_CONFIG.ENDPOINTS.TRAINER.REGISTER,
       formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      },
     );
 
     return data;
@@ -83,12 +78,34 @@ export const trainerService = {
 
   /**
    * Get trainer profile
-   * @returns Trainer profile data
    */
   getProfile: async (): Promise<unknown> => {
     const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.TRAINER.GET_PROFILE);
     return data;
   },
+
+  /**
+   * Returns the URL of the trainer's ID proof image.
+   * Pass with Authorization header when used as an Image source.
+   */
+  getIdProofUrl: (): string => `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TRAINER.ID_PROOF}`,
+
+  /**
+   * List all trainer certifications.
+   * Response: { status: true, data: [{ id, name, content_type, created_at, image_url }] }
+   */
+  getCertifications: async (): Promise<CertificationListItem[]> => {
+    const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.TRAINER.CERTIFICATIONS);
+    const result = data.data ?? data.results ?? data;
+    return Array.isArray(result) ? result : [];
+  },
+
+  /**
+   * Returns the URL of a single certification image by ID.
+   * Pass with Authorization header when used as an Image source.
+   */
+  getCertificationImageUrl: (certId: number): string =>
+    `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TRAINER.CERTIFICATIONS}${certId}/`,
 
   /**
    * Update trainer profile
@@ -111,9 +128,7 @@ export const trainerService = {
     if (input.sessionType) formData.append('session_type', input.sessionType);
 
     if (input.expertiseCategories) {
-      input.expertiseCategories.forEach((category) => {
-        formData.append('expertise_categories[]', category);
-      });
+      formData.append('expertise_categories', JSON.stringify(input.expertiseCategories));
     }
 
     if (input.profileImage) {

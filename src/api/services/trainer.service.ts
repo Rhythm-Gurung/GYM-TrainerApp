@@ -1,4 +1,4 @@
-import { apiClient } from '@/api/client';
+    import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type {
   CertificationListItem,
@@ -106,6 +106,30 @@ export const trainerService = {
    */
   getCertificationImageUrl: (certId: number): string =>
     `${API_CONFIG.BASE_URL}${API_CONFIG.ENDPOINTS.TRAINER.CERTIFICATIONS}${certId}/`,
+
+  /**
+   * Upload one or more certification images.
+   */
+  uploadCertifications: async (files: { uri: string; name: string; type: string }[]): Promise<void> => {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('certifications', {
+        uri: file.uri,
+        name: file.name,
+        type: file.type,
+      } as unknown as Blob);
+    });
+    await apiClient.post(API_CONFIG.ENDPOINTS.TRAINER.CERTIFICATIONS, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  /**
+   * Delete a single certification by ID.
+   */
+  deleteCertification: async (certId: number): Promise<void> => {
+    await apiClient.delete(`${API_CONFIG.ENDPOINTS.TRAINER.CERTIFICATIONS}${certId}/`);
+  },
 
   /**
    * Update trainer profile

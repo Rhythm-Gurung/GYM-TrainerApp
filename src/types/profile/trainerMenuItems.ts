@@ -22,7 +22,7 @@ export const getTrainerMenuItems = (router: Router): TrainerMenuItem[] => [
         icon: 'ribbon-outline',
         label: 'Certifications',
         onPress: () => {
-            // TODO: Navigate to certifications
+            router.push('/(tabs)/trainer/profile/certifications' as never);
         },
     },
     {

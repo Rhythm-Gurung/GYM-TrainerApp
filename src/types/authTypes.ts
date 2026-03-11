@@ -40,6 +40,8 @@ export interface User {
   pricing_per_session?: string;
   session_type?: 'online' | 'offline' | 'both';
   id_proof_url?: string | null;
+  verification_status?: 'pending' | 'verified' | 're_verification_required' | 'reverification_rejected';
+  profile_completion?: number | null;
   is_active?: boolean;
   is_receiving_promotional_email?: boolean;
   agreed_to_policies?: boolean;

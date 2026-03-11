@@ -20,47 +20,32 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 
 import { trainerService } from '@/api/services/trainer.service';
 import HeroGradient from '@/components/ui/HeroGradient';
-import { API_CONFIG } from '@/constants/config';
 import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
+import { computeProfileCompletion } from '@/constants/trainerProfile.constants';
 import { useAuth } from '@/contexts/auth';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { showErrorToast, showSuccessToast } from '@/lib';
+import { getInitials, resolveImageUrl, showErrorToast, showSuccessToast } from '@/lib';
 import type { User } from '@/types/authTypes';
 import { getTrainerMenuItems } from '@/types/profile/trainerMenuItems';
-import type { CertificationListItem } from '@/types/trainerTypes';
-
-function resolveImageUrl(url: string | undefined): string | undefined {
-    if (!url) return undefined;
-    if (url.startsWith('http')) return url;
-    return `${API_CONFIG.BASE_URL}${url}`;
-}
-
-const TRAINER_PROFILE_FIELDS: (keyof User)[] = [
-    'email', 'username', 'full_name', 'profile_image',
-    'bio', 'contact_no', 'years_of_experience', 'expertise_categories',
-    'pricing_per_session', 'session_type',
-];
-
-function computeProfileCompletion(user: User | null): number {
-    if (!user) return 0;
-    const filled = TRAINER_PROFILE_FIELDS.filter((f) => {
-        const val = user[f];
-        return val !== undefined && val !== null && val !== '';
-    }).length;
-    return Math.round((filled / TRAINER_PROFILE_FIELDS.length) * 100);
-}
-
-function getInitials(user: User | null): string {
-    const name = user?.full_name ?? user?.username ?? user?.email ?? '';
-    return name
-        .split(' ')
-        .map((word) => word[0]?.toUpperCase() ?? '')
-        .slice(0, 2)
-        .join('');
-}
 
 const SLIDE = 40;
 const DUR = 350;
+
+function getVerificationBannerTitle(status: string): string {
+    if (status === 'reverification_rejected') return 'Verification Rejected';
+    if (status === 're_verification_required') return 'Re-verification Required';
+    return 'Awaiting Verification';
+}
+
+function getVerificationBannerBody(status: string): string {
+    if (status === 'reverification_rejected') {
+        return 'Your verification was rejected. Please review your documents or contact support.';
+    }
+    if (status === 're_verification_required') {
+        return "You've updated verification-sensitive details. An admin will review them — profile completion returns to 100% once approved.";
+    }
+    return 'Your profile is pending initial review by an admin before you can go live.';
+}
 
 export default function TrainerProfile() {
     const router = useRouter();
@@ -69,7 +54,6 @@ export default function TrainerProfile() {
     const { logout, getProfile, authState } = useAuth();
 
     const [user, setUser] = useState<User | null>(null);
-    const [certifications, setCertifications] = useState<CertificationListItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -90,22 +74,10 @@ export default function TrainerProfile() {
             v.signoutY.value = withDelay(220, withTiming(0, ease));
 
             setIsLoading(true);
-            Promise.allSettled([
-                getProfile(),
-                trainerService.getCertifications(),
-            ]).then(([userResult, certsResult]) => {
-                if (userResult.status === 'fulfilled') {
-                    setUser(userResult.value);
-                } else {
-                    console.warn('[Profile] whoami failed:', userResult.reason?.response?.status, userResult.reason?.response?.data);
-                }
-
-                if (certsResult.status === 'fulfilled') {
-                    setCertifications(certsResult.value);
-                } else {
-                    console.warn('[Profile] Certifications failed:', certsResult.reason?.response?.status, certsResult.reason?.response?.data);
-                }
-            }).finally(() => setIsLoading(false));
+            getProfile()
+                .then(setUser)
+                .catch((err) => console.warn('[Profile] whoami failed:', err?.response?.status, err?.response?.data))
+                .finally(() => setIsLoading(false));
         }, [getProfile]),
     );
 
@@ -324,6 +296,65 @@ export default function TrainerProfile() {
                         </View>
                     </Animated.View>
 
+                    {/* ── Verification Banner ───────────────────────────── */}
+                    {user?.verification_status != null && user.verification_status !== 'verified' && (
+                        <Animated.View
+                            style={[
+                                {
+                                    flexDirection: 'row',
+                                    alignItems: 'flex-start',
+                                    gap: 10,
+                                    marginTop: 12,
+                                    padding: 14,
+                                    borderRadius: radius.card,
+                                    backgroundColor: user.verification_status === 'reverification_rejected'
+                                        ? 'rgba(255,59,48,0.08)'
+                                        : '#FFFBEB',
+                                    borderWidth: 1,
+                                    borderColor: user.verification_status === 'reverification_rejected'
+                                        ? colors.error
+                                        : '#F59E0B',
+                                },
+                                cardStyle,
+                            ]}
+                        >
+                            <Ionicons
+                                name={user.verification_status === 'reverification_rejected'
+                                    ? 'close-circle-outline'
+                                    : 'time-outline'}
+                                size={18}
+                                color={user.verification_status === 'reverification_rejected'
+                                    ? colors.error
+                                    : '#B45309'}
+                            />
+                            <View style={{ flex: 1, gap: 2 }}>
+                                <Text
+                                    style={{
+                                        fontSize: fontSize.tag,
+                                        fontWeight: '700',
+                                        color: user.verification_status === 'reverification_rejected'
+                                            ? colors.error
+                                            : '#92400E',
+                                    }}
+                                >
+                                    {getVerificationBannerTitle(user.verification_status)}
+                                </Text>
+                                <Text
+                                    style={{
+                                        fontSize: fontSize.caption,
+                                        color: user.verification_status === 'reverification_rejected'
+                                            ? colors.error
+                                            : '#92400E',
+                                        lineHeight: 18,
+                                        opacity: 0.85,
+                                    }}
+                                >
+                                    {getVerificationBannerBody(user.verification_status)}
+                                </Text>
+                            </View>
+                        </Animated.View>
+                    )}
+
                     {/* ── ID Proof ─────────────────────────────────────── */}
                     <Animated.View
                         className="mt-5 bg-white rounded-2xl p-5 border border-surface"
@@ -373,109 +404,6 @@ export default function TrainerProfile() {
                                     }}
                                 >
                                     No ID proof uploaded
-                                </Text>
-                            </View>
-                        )}
-                    </Animated.View>
-
-                    {/* ── Certifications ───────────────────────────────── */}
-                    <Animated.View
-                        className="mt-5 bg-white rounded-2xl p-5 border border-surface"
-                        style={[shadow.cardSubtle, cardStyle]}
-                    >
-                        <View className="flex-row items-center mb-3" style={{ gap: 8 }}>
-                            <Ionicons name="ribbon-outline" size={18} color={colors.trainerPrimary} />
-                            <Text
-                                style={{
-                                    fontSize: fontSize.body,
-                                    fontWeight: '700',
-                                    color: colors.textPrimary,
-                                }}
-                            >
-                                Certifications
-                            </Text>
-                            <View
-                                style={{
-                                    marginLeft: 'auto',
-                                    backgroundColor: colors.trainerMuted,
-                                    paddingHorizontal: 8,
-                                    paddingVertical: 2,
-                                    borderRadius: radius.full,
-                                }}
-                            >
-                                <Text
-                                    style={{
-                                        fontSize: fontSize.badge,
-                                        color: colors.trainerPrimary,
-                                        fontWeight: '600',
-                                    }}
-                                >
-                                    {certifications.length}
-                                </Text>
-                            </View>
-                        </View>
-
-                        {certifications.length > 0 ? (
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10 }}>
-                                {certifications.map((cert) => (
-                                    <View
-                                        key={cert.id}
-                                        style={{
-                                            width: 80,
-                                            height: 80,
-                                            borderRadius: radius.sm,
-                                            overflow: 'hidden',
-                                        }}
-                                    >
-                                        {cert.image_url ? (
-                                            <ExpoImage
-                                                source={{ uri: trainerService.getCertificationImageUrl(cert.id), headers: { Authorization: `Bearer ${authState.token ?? ''}` } }}
-                                                style={{ width: '100%', height: '100%' }}
-                                                contentFit="cover"
-                                            />
-                                        ) : (
-                                            <View
-                                                style={{
-                                                    flex: 1,
-                                                    backgroundColor: colors.surfaceSubtle,
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    borderWidth: 1,
-                                                    borderColor: colors.surfaceBorder,
-                                                }}
-                                            >
-                                                <Ionicons name="document-outline" size={24} color={colors.textDisabled} />
-                                                <Text style={{ fontSize: 10, color: colors.textDisabled, marginTop: 4 }}>
-                                                    #
-                                                    {cert.id}
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                ))}
-                            </View>
-                        ) : (
-                            <View
-                                style={{
-                                    height: 80,
-                                    borderRadius: radius.sm,
-                                    backgroundColor: colors.surfaceSubtle,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderWidth: 1,
-                                    borderColor: colors.surfaceBorder,
-                                    borderStyle: 'dashed',
-                                }}
-                            >
-                                <Ionicons name="ribbon-outline" size={24} color={colors.textDisabled} />
-                                <Text
-                                    style={{
-                                        fontSize: fontSize.caption,
-                                        color: colors.textDisabled,
-                                        marginTop: 6,
-                                    }}
-                                >
-                                    No certifications uploaded
                                 </Text>
                             </View>
                         )}

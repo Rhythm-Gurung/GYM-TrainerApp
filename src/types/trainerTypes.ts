@@ -127,3 +127,21 @@ export interface CertificationDetail {
     title?: string;
     uploaded_at?: string;
 }
+
+export interface GalleryItem {
+    id: number;
+    image_url: string;
+    caption?: string;
+    created_at: string;
+}
+
+// Edit Profile form fields
+export interface EditProfileForm {
+    first_name: string;
+    last_name: string;
+    dob: string;
+    contact_no: string;
+    bio: string;
+    years_of_experience: string;
+    pricing_per_session: string;
+}

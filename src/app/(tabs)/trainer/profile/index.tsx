@@ -1,13 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
+import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Image,
     ScrollView,
     Text,
     TouchableOpacity,
+    useWindowDimensions,
     View,
 } from 'react-native';
 import Animated, {
@@ -26,7 +29,7 @@ import { useAuth } from '@/contexts/auth';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { getInitials, resolveImageUrl, showErrorToast, showSuccessToast } from '@/lib';
 import type { User } from '@/types/authTypes';
-import { getTrainerMenuItems } from '@/types/profile/trainerMenuItems';
+import type { GalleryItem } from '@/types/trainerTypes';
 
 const SLIDE = 40;
 const DUR = 350;
@@ -47,20 +50,37 @@ function getVerificationBannerBody(status: string): string {
     return 'Your profile is pending initial review by an admin before you can go live.';
 }
 
+function withVersion(url: string | undefined, version: number): string | undefined {
+    if (!url) return undefined;
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}v=${version}`;
+}
+
 export default function TrainerProfile() {
     const router = useRouter();
     const tabBarHeight = useTabBarHeight();
     const insets = useSafeAreaInsets();
-    const { logout, getProfile, authState } = useAuth();
+    const { width } = useWindowDimensions();
+    const { getProfile, authState } = useAuth();
+
+    const PREVIEW_GAP = 8;
+    const PREVIEW_COLUMNS = 3;
+    const previewContentWidth = Math.max(width - 80, 120);
+    const previewTileSize = Math.floor(
+        (previewContentWidth - PREVIEW_GAP * (PREVIEW_COLUMNS - 1)) / PREVIEW_COLUMNS,
+    );
 
     const [user, setUser] = useState<User | null>(null);
+    const [gallery, setGallery] = useState<GalleryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [idProofVersion, setIdProofVersion] = useState(Date.now());
+    const [galleryVersion, setGalleryVersion] = useState(Date.now());
+    const [isUpdatingProfileImage, setIsUpdatingProfileImage] = useState(false);
+    const [isUpdatingIdProof, setIsUpdatingIdProof] = useState(false);
 
     const cardY = useSharedValue(SLIDE);
     const menuY = useSharedValue(SLIDE);
-    const signoutY = useSharedValue(SLIDE);
-    const anim = useRef({ cardY, menuY, signoutY });
+    const anim = useRef({ cardY, menuY });
 
     useFocusEffect(
         useCallback(() => {
@@ -70,12 +90,15 @@ export default function TrainerProfile() {
             v.cardY.value = withTiming(0, ease);
             v.menuY.value = SLIDE;
             v.menuY.value = withDelay(120, withTiming(0, ease));
-            v.signoutY.value = SLIDE;
-            v.signoutY.value = withDelay(220, withTiming(0, ease));
 
             setIsLoading(true);
-            getProfile()
-                .then(setUser)
+            setIdProofVersion(Date.now());
+            setGalleryVersion(Date.now());
+            Promise.all([getProfile(), trainerService.getGallery()])
+                .then(([profile, galleryItems]) => {
+                    setUser(profile);
+                    setGallery(galleryItems);
+                })
                 .catch((err) => console.warn('[Profile] whoami failed:', err?.response?.status, err?.response?.data))
                 .finally(() => setIsLoading(false));
         }, [getProfile]),
@@ -83,22 +106,76 @@ export default function TrainerProfile() {
 
     const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: cardY.value }] }));
     const menuStyle = useAnimatedStyle(() => ({ transform: [{ translateY: menuY.value }] }));
-    const signoutStyle = useAnimatedStyle(() => ({ transform: [{ translateY: signoutY.value }] }));
 
-    const handleLogout = useCallback(async () => {
+    const handleEditProfileImage = useCallback(async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsMultipleSelection: false,
+            quality: 0.9,
+        });
+
+        if (result.canceled || result.assets.length === 0) return;
+
+        const asset = result.assets[0];
+        setIsUpdatingProfileImage(true);
         try {
-            setIsLoggingOut(true);
-            await logout();
-            showSuccessToast('Logged out successfully', 'Success');
-            router.replace('/(auth)/login');
+            await trainerService.uploadProfileImage({
+                uri: asset.uri,
+                name: asset.fileName ?? `profile_${Date.now()}.jpg`,
+                type: asset.mimeType ?? 'image/jpeg',
+            });
+            const refreshedProfile = await getProfile();
+            setUser(refreshedProfile);
+            showSuccessToast('Profile image updated', 'Success');
         } catch {
-            showErrorToast('Failed to logout', 'Error');
+            showErrorToast('Failed to update profile image', 'Error');
         } finally {
-            setIsLoggingOut(false);
+            setIsUpdatingProfileImage(false);
         }
-    }, [logout, router]);
+    }, [getProfile]);
 
-    const menuItems = getTrainerMenuItems(router);
+    const handleEditIdProof = useCallback(async () => {
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsMultipleSelection: false,
+            quality: 0.9,
+        });
+
+        if (result.canceled || result.assets.length === 0) return;
+
+        const asset = result.assets[0];
+
+        const shouldContinue = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+                'Change ID Proof',
+                'Are you sure you want to replace your current ID proof?',
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Confirm', onPress: () => resolve(true) },
+                ],
+                { cancelable: true, onDismiss: () => resolve(false) },
+            );
+        });
+
+        if (!shouldContinue) return;
+
+        setIsUpdatingIdProof(true);
+        try {
+            await trainerService.uploadIdProof({
+                uri: asset.uri,
+                name: asset.fileName ?? `id_proof_${Date.now()}.jpg`,
+                type: asset.mimeType ?? 'image/jpeg',
+            });
+            const refreshedProfile = await getProfile();
+            setUser(refreshedProfile);
+            setIdProofVersion(Date.now());
+            showSuccessToast('ID proof updated', 'Success');
+        } catch {
+            showErrorToast('Failed to update ID proof', 'Error');
+        } finally {
+            setIsUpdatingIdProof(false);
+        }
+    }, [getProfile]);
 
     if (isLoading) {
         return (
@@ -119,13 +196,31 @@ export default function TrainerProfile() {
         <SafeAreaView className="flex-1 bg-background" edges={['left', 'right']}>
             <HeroGradient gradient={gradientColors.trainer} fixed />
             <ScrollView
-                contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 16 }}
+                contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 20 }}
                 showsVerticalScrollIndicator={false}
             >
                 <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 24, paddingBottom: 80 }}>
-                    <Text style={{ fontSize: fontSize.pageTitle, fontWeight: '800', color: colors.white }}>
-                        My Profile
-                    </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ flex: 1, fontSize: fontSize.pageTitle, fontWeight: '800', color: colors.white }}>
+                            My Profile
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => router.push('/(tabs)/trainer/profile/profileMenu' as never)}
+                            activeOpacity={0.75}
+                            style={{
+                                width: 36,
+                                height: 36,
+                                borderRadius: radius.icon,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: 'rgba(255,255,255,0.18)',
+                                borderWidth: 1,
+                                borderColor: 'rgba(255,255,255,0.28)',
+                            }}
+                        >
+                            <Ionicons name="menu" size={20} color={colors.white} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
 
                 <View style={{ paddingHorizontal: 20, marginTop: -48 }}>
@@ -172,6 +267,8 @@ export default function TrainerProfile() {
                                     </View>
                                 )}
                                 <TouchableOpacity
+                                    onPress={handleEditProfileImage}
+                                    disabled={isUpdatingProfileImage}
                                     style={{
                                         position: 'absolute',
                                         bottom: -4,
@@ -185,7 +282,11 @@ export default function TrainerProfile() {
                                         ...shadow.trainer,
                                     }}
                                 >
-                                    <Ionicons name="camera" size={14} color={colors.white} />
+                                    {isUpdatingProfileImage ? (
+                                        <ActivityIndicator size="small" color={colors.white} />
+                                    ) : (
+                                        <Ionicons name="camera" size={14} color={colors.white} />
+                                    )}
                                 </TouchableOpacity>
                             </View>
 
@@ -253,7 +354,7 @@ export default function TrainerProfile() {
                             <View style={{ flex: 1, alignItems: 'center' }}>
                                 <Text style={{ fontSize: fontSize.stat, fontWeight: '800', color: colors.textPrimary }}>
                                     {user?.pricing_per_session
-                                        ? `$${user.pricing_per_session}`
+                                        ? `Rs${user.pricing_per_session}`
                                         : '—'}
                                 </Text>
                                 <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, fontWeight: '500', marginTop: 2 }}>
@@ -360,27 +461,62 @@ export default function TrainerProfile() {
                         className="mt-5 bg-white rounded-2xl p-5 border border-surface"
                         style={[shadow.cardSubtle, cardStyle]}
                     >
-                        <View className="flex-row items-center mb-3" style={{ gap: 8 }}>
-                            <Ionicons name="card-outline" size={18} color={colors.trainerPrimary} />
-                            <Text
+                        <View className="flex-row items-center justify-between mb-3">
+                            <View className="flex-row items-center" style={{ gap: 8 }}>
+                                <Ionicons name="card-outline" size={18} color={colors.trainerPrimary} />
+                                <Text
+                                    style={{
+                                        fontSize: fontSize.body,
+                                        fontWeight: '700',
+                                        color: colors.textPrimary,
+                                    }}
+                                >
+                                    ID Proof
+                                </Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={handleEditIdProof}
+                                disabled={isUpdatingIdProof}
+                                activeOpacity={0.75}
                                 style={{
-                                    fontSize: fontSize.body,
-                                    fontWeight: '700',
-                                    color: colors.textPrimary,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    gap: 6,
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 7,
+                                    borderRadius: radius.full,
+                                    backgroundColor: colors.trainerMuted,
+                                    borderWidth: 1,
+                                    borderColor: colors.trainerBorder,
                                 }}
                             >
-                                ID Proof
-                            </Text>
+                                {isUpdatingIdProof ? (
+                                    <ActivityIndicator size="small" color={colors.trainerPrimary} />
+                                ) : (
+                                    <Ionicons
+                                        name={user?.id_proof_url ? 'create-outline' : 'cloud-upload-outline'}
+                                        size={14}
+                                        color={colors.trainerPrimary}
+                                    />
+                                )}
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.trainerPrimary }}>
+                                    {user?.id_proof_url ? 'Edit ID Proof' : 'Upload ID Proof'}
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                         {user?.id_proof_url ? (
                             <ExpoImage
-                                source={{ uri: trainerService.getIdProofUrl(), headers: { Authorization: `Bearer ${authState.token ?? ''}` } }}
+                                source={{
+                                    uri: `${trainerService.getIdProofUrl()}?v=${idProofVersion}`,
+                                    headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                                }}
                                 style={{
                                     width: '100%',
-                                    height: 180,
+                                    height: 210,
                                     borderRadius: radius.sm,
                                 }}
                                 contentFit="cover"
+                                cachePolicy="none"
                             />
                         ) : (
                             <View
@@ -409,53 +545,78 @@ export default function TrainerProfile() {
                         )}
                     </Animated.View>
 
-                    {/* ── Menu Items ───────────────────────────────────── */}
+                    {/* ── Gallery ────────────────────────────────────── */}
                     <Animated.View
-                        className="mt-5 bg-white rounded-2xl overflow-hidden border border-surface"
+                        className="mt-5 bg-white rounded-2xl p-5 border border-surface"
                         style={[shadow.cardSubtle, menuStyle]}
                     >
-                        {menuItems.map(({ id, icon, label, onPress }, index) => (
-                            <View key={id}>
-                                <TouchableOpacity
-                                    onPress={onPress}
-                                    className={`flex-row items-center px-5 py-4 ${index !== menuItems.length - 1 ? 'border-b border-surface-subtle' : ''}`}
-                                    activeOpacity={0.6}
+                        <View className="flex-row items-center justify-between">
+                            <View className="flex-row items-center" style={{ gap: 8 }}>
+                                <Ionicons name="images-outline" size={18} color={colors.trainerPrimary} />
+                                <Text
+                                    style={{
+                                        fontSize: fontSize.body,
+                                        fontWeight: '700',
+                                        color: colors.textPrimary,
+                                    }}
                                 >
-                                    <View
-                                        style={{
-                                            width: 32,
-                                            height: 32,
-                                            borderRadius: radius.sm,
-                                            backgroundColor: colors.surface,
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                        }}
-                                    >
-                                        <Ionicons name={icon} size={16} color={colors.textMuted} />
-                                    </View>
-                                    <Text className="flex-1 text-sm font-medium text-foreground ml-3">{label}</Text>
-                                    <Ionicons name="chevron-forward" size={16} color={colors.textDisabled} />
-                                </TouchableOpacity>
+                                    Gallery
+                                </Text>
                             </View>
-                        ))}
-                    </Animated.View>
+                            <TouchableOpacity
+                                onPress={() => router.push('/(tabs)/trainer/profile/gallery' as never)}
+                                activeOpacity={0.75}
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    borderRadius: radius.sm,
+                                    backgroundColor: colors.trainerMuted,
+                                    borderWidth: 1,
+                                    borderColor: colors.trainerBorder,
+                                }}
+                            >
+                                <Ionicons name="chevron-forward" size={16} color={colors.trainerPrimary} />
+                            </TouchableOpacity>
+                        </View>
 
-                    {/* ── Sign Out ─────────────────────────────────────── */}
-                    <Animated.View style={signoutStyle}>
-                        <TouchableOpacity
-                            onPress={handleLogout}
-                            disabled={isLoggingOut}
-                            className="mt-5 flex-row items-center justify-center py-3.5 rounded-2xl border border-error-border active:bg-error-bg"
-                            style={{ gap: 8 }}
-                            activeOpacity={0.7}
-                        >
-                            {isLoggingOut ? (
-                                <ActivityIndicator size="small" color={colors.error} />
-                            ) : (
-                                <Ionicons name="log-out-outline" size={16} color={colors.error} />
-                            )}
-                            <Text className="text-sm font-semibold text-error">Sign Out</Text>
-                        </TouchableOpacity>
+                        {gallery.length > 0 ? (
+                            <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: PREVIEW_GAP }}>
+                                {gallery.slice(0, 9).map((item) => {
+                                    const imageUri = withVersion(resolveImageUrl(item.image_url), galleryVersion);
+                                    if (!imageUri) return null;
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={`${item.id}-${galleryVersion}`}
+                                            activeOpacity={0.82}
+                                            onPress={() => router.push('/(tabs)/trainer/profile/gallery' as never)}
+                                            style={{ width: previewTileSize }}
+                                        >
+                                            <ExpoImage
+                                                source={{
+                                                    uri: imageUri,
+                                                    headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                                                }}
+                                                style={{
+                                                    width: previewTileSize,
+                                                    height: previewTileSize,
+                                                    borderRadius: radius.sm,
+                                                    backgroundColor: colors.surface,
+                                                }}
+                                                contentFit="cover"
+                                                cachePolicy="none"
+                                            />
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        ) : (
+                            <Text style={{ fontSize: fontSize.caption, color: colors.textMuted, marginTop: 8 }}>
+                                No gallery images yet
+                            </Text>
+                        )}
                     </Animated.View>
 
                 </View>

@@ -14,7 +14,7 @@ export const getTrainerMenuItems = (router: Router): TrainerMenuItem[] => [
         icon: 'person-outline',
         label: 'Edit Profile',
         onPress: () => {
-            // TODO: Navigate to trainer edit profile
+            router.push('/(tabs)/trainer/profile/editProfile' as never);
         },
     },
     {

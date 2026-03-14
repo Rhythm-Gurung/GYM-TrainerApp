@@ -1,6 +1,6 @@
 export const API_CONFIG = {
     BASE_URL:
-    process.env.EXPO_PUBLIC_API_URL || 'https://chanco-core.lolskins.gg',
+    process.env.EXPO_PUBLIC_API_URL,
     TIMEOUT: 30000,
     ENDPOINTS: {
         AUTH: {
@@ -21,9 +21,12 @@ export const API_CONFIG = {
         TRAINER: {
             REGISTER: '/api/system/auth/register/',
             UPDATE_PROFILE: '/api/trainer/update-profile/',
+            UPDATE_PROFILE_DETAILS: '/api/system/trainer/update-profile/',
             GET_PROFILE: '/api/trainer/profile/',
             ID_PROOF: '/api/system/trainer/id-proof/',
+            PROFILE_IMAGE: '/api/system/trainer/profile-image/',
             CERTIFICATIONS: '/api/system/trainer/certifications/',
+            GALLERY: '/api/system/trainer/gallery/',
         },
         TOKEN: {
             REFRESH: '/api/token/refresh/',

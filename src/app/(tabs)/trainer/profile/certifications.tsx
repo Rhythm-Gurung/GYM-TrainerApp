@@ -5,6 +5,7 @@ import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     Image,
     ScrollView,
     Text,
@@ -19,7 +20,7 @@ import { colors, fontSize, radius, shadow } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { showErrorToast, showSuccessToast } from '@/lib';
 import type { CertificationListItem } from '@/types/trainerTypes';
-
+  
 function getVerificationBannerText(status: string): string {
     if (status === 'reverification_rejected') {
         return 'Verification rejected. Please review your documents or contact support.';
@@ -95,6 +96,18 @@ export default function Certifications() {
 
     const handleDelete = useCallback(async () => {
         if (!canDelete) return;
+        const shouldContinue = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+                'Delete Certifications',
+                'Deleting certifications requires admin confirmation before your profile is updated.',
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Confirm', onPress: () => resolve(true) },
+                ],
+                { cancelable: true, onDismiss: () => resolve(false) },
+            );
+        });
+        if (!shouldContinue) return;
         setIsDeleting(true);
         try {
             await Promise.allSettled([...selectedIds].map((id) => trainerService.deleteCertification(id)));
@@ -125,6 +138,18 @@ export default function Certifications() {
     const handleCancelPending = useCallback(() => setPendingImages([]), []);
 
     const handleSubmitUpload = useCallback(async () => {
+        const shouldContinue = await new Promise<boolean>((resolve) => {
+            Alert.alert(
+                'Upload Certifications',
+                'Uploading new certifications requires admin confirmation before your profile is updated.',
+                [
+                    { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                    { text: 'Confirm', onPress: () => resolve(true) },
+                ],
+                { cancelable: true, onDismiss: () => resolve(false) },
+            );
+        });
+        if (!shouldContinue) return;
         setIsUploading(true);
         try {
             const files = pendingImages.map((a) => ({
@@ -280,6 +305,25 @@ export default function Certifications() {
                 </View>
             )}
 
+            {/* ── Minimum 1 cert note ─────────────────────────────── */}
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginHorizontal: 20,
+                    marginTop: 12,
+                    padding: 12,
+                    borderRadius: radius.card,
+                    backgroundColor: colors.trainerMuted,
+                }}
+            >
+                <Ionicons name="information-circle-outline" size={16} color={colors.trainerPrimary} />
+                <Text style={{ flex: 1, fontSize: fontSize.caption, color: colors.trainerPrimary, lineHeight: 18 }}>
+                    At least 1 certification is required. You cannot delete your last remaining certificate.
+                </Text>
+            </View>
+
             {isLoading ? (
                 <View className="flex-1 items-center justify-center">
                     <ActivityIndicator size="large" color={colors.trainerPrimary} />
@@ -410,58 +454,27 @@ export default function Certifications() {
                                 backgroundColor: colors.white,
                                 borderTopWidth: 1,
                                 borderTopColor: colors.surfaceBorder,
-                                paddingTop: 6,
+                                paddingTop: 12,
                                 paddingBottom: 16,
                                 paddingHorizontal: H_PADDING,
                                 gap: 10,
                             }}
                         >
                             {/* Thumbnails */}
-                            <ScrollView
-                                horizontal
-                                showsHorizontalScrollIndicator={false}
-                                contentContainerStyle={{ paddingTop: 10, paddingHorizontal: 10, paddingBottom: 2 }}
-                            >
-                                <View style={{ flexDirection: 'row', gap: 16 }}>
-                                    {pendingImages.map((img, index) => (
-                                        <View
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ gap: 8 }}>
+                                <View style={{ flexDirection: 'row', gap: 8 }}>
+                                    {pendingImages.map((img) => (
+                                        <Image
                                             key={img.uri}
-                                            style={{ width: 80, height: 80, position: 'relative' }}
-                                        >
-                                            <Image
-                                                source={{ uri: img.uri }}
-                                                style={{
-                                                    width: 80,
-                                                    height: 80,
-                                                    borderRadius: radius.sm,
-                                                    backgroundColor: colors.surface,
-                                                }}
-                                                resizeMode="cover"
-                                            />
-                                            <TouchableOpacity
-                                                onPress={() => setPendingImages((prev) => prev.filter((_, i) => i !== index))}
-                                                activeOpacity={0.8}
-                                                style={{
-                                                    position: 'absolute',
-                                                    top: -8,
-                                                    right: -8,
-                                                    width: 22,
-                                                    height: 22,
-                                                    borderRadius: 11,
-                                                    backgroundColor: colors.error,
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    zIndex: 10,
-                                                    shadowColor: '#000',
-                                                    shadowOffset: { width: 0, height: 1 },
-                                                    shadowOpacity: 0.2,
-                                                    shadowRadius: 2,
-                                                    elevation: 3,
-                                                }}
-                                            >
-                                                <Ionicons name="close" size={13} color={colors.white} />
-                                            </TouchableOpacity>
-                                        </View>
+                                            source={{ uri: img.uri }}
+                                            style={{
+                                                width: 56,
+                                                height: 56,
+                                                borderRadius: radius.sm,
+                                                backgroundColor: colors.surface,
+                                            }}
+                                            resizeMode="cover"
+                                        />
                                     ))}
                                 </View>
                             </ScrollView>

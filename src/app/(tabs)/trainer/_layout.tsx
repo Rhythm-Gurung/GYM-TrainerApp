@@ -1,5 +1,5 @@
-import { Ionicons } from '@expo/vector-icons';
 import { colors, fontSize } from '@/constants/theme';
+import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { Tabs } from 'expo-router';
 import { Platform, StyleSheet, View } from 'react-native';

@@ -66,6 +66,8 @@ export default function GalleryScreen() {
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
     const outerListRef = useRef<FlatList<GalleryGroup>>(null);
+    const previewListRef = useRef<FlatList<ImagePicker.ImagePickerAsset>>(null);
+    const [previewIndex, setPreviewIndex] = useState(0);
 
     const GRID_GAP = 8;
     const GRID_COLUMNS = 3;
@@ -129,7 +131,17 @@ export default function GalleryScreen() {
         setIsUploadPreviewVisible(false);
         setPendingAssets([]);
         setCaptionInput('');
+        setPreviewIndex(0);
     }, [isUploading]);
+
+    const handlePreviewScroll = useCallback(
+        (event: { nativeEvent: { contentOffset: { x: number } } }) => {
+            const previewCarouselWidth = containerWidth - 32;
+            const index = Math.round(event.nativeEvent.contentOffset.x / previewCarouselWidth);
+            setPreviewIndex(index);
+        },
+        [containerWidth],
+    );
 
     const handlePickImages = useCallback(async () => {
         if (isUploading) return;
@@ -285,11 +297,7 @@ export default function GalleryScreen() {
     }, [selectedIds, loadGallery, cancelSelect]);
 
     // ── Memos ──────────────────────────────────────────────────────────────
-    const pendingPreviewUri = useMemo(() => {
-        const firstAsset = pendingAssets[0];
-        if (!firstAsset?.uri) return undefined;
-        return firstAsset.uri;
-    }, [pendingAssets]);
+    const previewCarouselWidth = containerWidth - 32; // card width minus scroll-view padding (16×2)
 
     // ── Render ─────────────────────────────────────────────────────────────
     return (
@@ -568,10 +576,18 @@ export default function GalleryScreen() {
                             keyboardShouldPersistTaps="handled"
                             showsVerticalScrollIndicator={false}
                         >
+                            {/* Header: title + counter + close */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
                                 <Text style={{ flex: 1, fontSize: fontSize.section, fontWeight: '700', color: colors.textPrimary }}>
                                     Preview Upload
                                 </Text>
+                                {pendingAssets.length > 1 && (
+                                    <Text style={{ fontSize: fontSize.caption, color: colors.textMuted, fontWeight: '600' }}>
+                                        {previewIndex + 1}
+                                        {' / '}
+                                        {pendingAssets.length}
+                                    </Text>
+                                )}
                                 <TouchableOpacity
                                     onPress={closeUploadPreview}
                                     disabled={isUploading}
@@ -591,33 +607,51 @@ export default function GalleryScreen() {
                                 </TouchableOpacity>
                             </View>
 
-                            {pendingAssets.length > 1 && (
-                                <Text style={{ fontSize: fontSize.caption, color: colors.textMuted }}>
-                                    {`${pendingAssets.length} images selected. Previewing the first image.`}
-                                </Text>
-                            )}
-
-                            <View
-                                style={{
-                                    borderRadius: radius.sm,
-                                    overflow: 'hidden',
-                                    backgroundColor: colors.surface,
-                                    minHeight: 320,
-                                    justifyContent: 'center',
-                                    alignItems: 'center',
-                                }}
-                            >
-                                {pendingPreviewUri ? (
-                                    <ExpoImage
-                                        source={{ uri: pendingPreviewUri }}
-                                        style={{ width: '100%', height: Math.min(width * 1.05, 460) }}
-                                        contentFit="contain"
-                                        cachePolicy="none"
-                                    />
-                                ) : (
-                                    <Text style={{ fontSize: fontSize.caption, color: colors.textMuted }}>Preview unavailable</Text>
-                                )}
+                            {/* Image carousel — swipe left/right to preview each selected image */}
+                            <View style={{ borderRadius: radius.sm, overflow: 'hidden', backgroundColor: colors.surface }}>
+                                <FlatList
+                                    ref={previewListRef}
+                                    data={pendingAssets}
+                                    keyExtractor={(asset) => asset.uri}
+                                    horizontal
+                                    pagingEnabled
+                                    showsHorizontalScrollIndicator={false}
+                                    onMomentumScrollEnd={handlePreviewScroll}
+                                    getItemLayout={(_, index) => ({
+                                        length: previewCarouselWidth,
+                                        offset: previewCarouselWidth * index,
+                                        index,
+                                    })}
+                                    style={{ width: previewCarouselWidth }}
+                                    renderItem={({ item: asset }) => (
+                                        <View style={{ width: previewCarouselWidth, height: Math.min(width * 0.9, 380) }}>
+                                            <ExpoImage
+                                                source={{ uri: asset.uri }}
+                                                style={{ flex: 1 }}
+                                                contentFit="contain"
+                                                cachePolicy="none"
+                                            />
+                                        </View>
+                                    )}
+                                />
                             </View>
+
+                            {/* Dot indicators */}
+                            {pendingAssets.length > 1 && (
+                                <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
+                                    {pendingAssets.map((asset, i) => (
+                                        <View
+                                            key={asset.uri}
+                                            style={{
+                                                width: i === previewIndex ? 16 : 5,
+                                                height: 5,
+                                                borderRadius: 3,
+                                                backgroundColor: i === previewIndex ? colors.trainerPrimary : colors.surfaceBorder,
+                                            }}
+                                        />
+                                    ))}
+                                </View>
+                            )}
 
                             <TextInput
                                 value={captionInput}

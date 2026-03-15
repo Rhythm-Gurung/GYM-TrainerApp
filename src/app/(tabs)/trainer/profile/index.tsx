@@ -2,12 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
     Image,
+    Modal,
     ScrollView,
+    StatusBar,
     Text,
     TouchableOpacity,
     useWindowDimensions,
@@ -95,6 +97,23 @@ export default function TrainerProfile() {
     const [galleryVersion, setGalleryVersion] = useState(Date.now());
     const [isUpdatingProfileImage, setIsUpdatingProfileImage] = useState(false);
     const [isUpdatingIdProof, setIsUpdatingIdProof] = useState(false);
+
+    const [viewerUri, setViewerUri] = useState<string | null>(null);
+    const [viewerNeedsAuth, setViewerNeedsAuth] = useState(false);
+    const [isViewerVisible, setIsViewerVisible] = useState(false);
+    const [viewerHeight, setViewerHeight] = useState(0);
+
+    const openViewer = useCallback((uri: string, needsAuth: boolean) => {
+        setViewerUri(uri);
+        setViewerNeedsAuth(needsAuth);
+        setIsViewerVisible(true);
+    }, []);
+
+    const closeViewer = useCallback(() => setIsViewerVisible(false), []);
+
+    useEffect(() => {
+        StatusBar.setBarStyle(isViewerVisible ? 'light-content' : 'dark-content', true);
+    }, [isViewerVisible]);
 
     const cardY = useSharedValue(SLIDE);
     const menuY = useSharedValue(SLIDE);
@@ -252,14 +271,19 @@ export default function TrainerProfile() {
                         <View className="flex-row items-center">
                             <View style={{ position: 'relative' }}>
                                 {user?.profile_image ? (
-                                    <Image
-                                        source={{ uri: resolveImageUrl(user.profile_image) }}
-                                        style={{
-                                            width: 72,
-                                            height: 72,
-                                            borderRadius: radius.card,
-                                        }}
-                                    />
+                                    <TouchableOpacity
+                                        activeOpacity={0.85}
+                                        onPress={() => openViewer(resolveImageUrl(user.profile_image) ?? '', false)}
+                                    >
+                                        <Image
+                                            source={{ uri: resolveImageUrl(user.profile_image) }}
+                                            style={{
+                                                width: 72,
+                                                height: 72,
+                                                borderRadius: radius.card,
+                                            }}
+                                        />
+                                    </TouchableOpacity>
                                 ) : (
                                     <View
                                         style={{
@@ -523,19 +547,24 @@ export default function TrainerProfile() {
                             </TouchableOpacity>
                         </View>
                         {user?.id_proof_url ? (
-                            <ExpoImage
-                                source={{
-                                    uri: `${trainerService.getIdProofUrl()}?v=${idProofVersion}`,
-                                    headers: { Authorization: `Bearer ${authState.token ?? ''}` },
-                                }}
-                                style={{
-                                    width: '100%',
-                                    height: 210,
-                                    borderRadius: radius.sm,
-                                }}
-                                contentFit="cover"
-                                cachePolicy="none"
-                            />
+                            <TouchableOpacity
+                                activeOpacity={0.9}
+                                onPress={() => openViewer(`${trainerService.getIdProofUrl()}?v=${idProofVersion}`, true)}
+                            >
+                                <ExpoImage
+                                    source={{
+                                        uri: `${trainerService.getIdProofUrl()}?v=${idProofVersion}`,
+                                        headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                                    }}
+                                    style={{
+                                        width: '100%',
+                                        height: 210,
+                                        borderRadius: radius.sm,
+                                    }}
+                                    contentFit="cover"
+                                    cachePolicy="none"
+                                />
+                            </TouchableOpacity>
                         ) : (
                             <View
                                 style={{
@@ -660,6 +689,58 @@ export default function TrainerProfile() {
 
                 </View>
             </ScrollView>
+            {/* ── Full-screen image viewer ── */}
+            <Modal
+                transparent={false}
+                animationType="fade"
+                visible={isViewerVisible}
+                onRequestClose={closeViewer}
+                statusBarTranslucent
+                navigationBarTranslucent
+            >
+                <View
+                    style={{ flex: 1, backgroundColor: '#000' }}
+                    onLayout={(e) => {
+                        const h = e.nativeEvent.layout.height;
+                        if (h > 0) setViewerHeight(h);
+                    }}
+                >
+                    {viewerUri && (
+                        <ExpoImage
+                            source={
+                                viewerNeedsAuth
+                                    ? { uri: viewerUri, headers: { Authorization: `Bearer ${authState.token ?? ''}` } }
+                                    : { uri: viewerUri }
+                            }
+                            style={{ flex: 1 }}
+                            contentFit="contain"
+                            cachePolicy="none"
+                        />
+                    )}
+
+                    <SafeAreaView
+                        edges={['top']}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0 }}
+                    >
+                        <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
+                            <TouchableOpacity
+                                onPress={closeViewer}
+                                activeOpacity={0.75}
+                                style={{
+                                    width: 38,
+                                    height: 38,
+                                    borderRadius: radius.full,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    backgroundColor: 'rgba(0,0,0,0.45)',
+                                }}
+                            >
+                                <Ionicons name="close" size={22} color="#fff" />
+                            </TouchableOpacity>
+                        </View>
+                    </SafeAreaView>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 }

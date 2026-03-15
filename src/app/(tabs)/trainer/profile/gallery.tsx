@@ -2,14 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
+    FlatList,
     KeyboardAvoidingView,
     Modal,
     Platform,
     ScrollView,
+    StatusBar,
     Text,
     TextInput,
     TouchableOpacity,
@@ -30,11 +32,17 @@ function withVersion(url: string | undefined, version: number): string | undefin
     return `${url}${separator}v=${version}`;
 }
 
+type GalleryGroup = {
+    key: string;
+    items: GalleryItem[];
+    isCollection: boolean;
+};
+
 export default function GalleryScreen() {
     const router = useRouter();
     const navigation = useNavigation();
     const { authState } = useAuth();
-    const { width } = useWindowDimensions();
+    const { width, height: screenHeight } = useWindowDimensions();
 
     const [gallery, setGallery] = useState<GalleryItem[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -44,7 +52,12 @@ export default function GalleryScreen() {
     const [version, setVersion] = useState(Date.now());
     const [pendingAssets, setPendingAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
     const [captionInput, setCaptionInput] = useState('');
-    const [selectedImage, setSelectedImage] = useState<GalleryItem | null>(null);
+
+    const [selectedGroupIndex, setSelectedGroupIndex] = useState(0);
+    const [innerIndex, setInnerIndex] = useState(0);
+    // Measured height of the full-screen viewer — may differ from screenHeight
+    // due to translucent status/nav bars. Used for pagingEnabled snap accuracy.
+    const [viewerHeight, setViewerHeight] = useState(screenHeight);
 
     const [isUploadPreviewVisible, setIsUploadPreviewVisible] = useState(false);
     const [isImageModalVisible, setIsImageModalVisible] = useState(false);
@@ -52,11 +65,42 @@ export default function GalleryScreen() {
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
+    const outerListRef = useRef<FlatList<GalleryGroup>>(null);
+
     const GRID_GAP = 8;
     const GRID_COLUMNS = 3;
     const containerWidth = Math.max(width - 40, 120);
     const tileSize = Math.floor((containerWidth - GRID_GAP * (GRID_COLUMNS - 1)) / GRID_COLUMNS);
 
+    // ── Group flat gallery array by collection_id ──────────────────────────
+    const galleryGroups = useMemo<GalleryGroup[]>(() => {
+        const collectionMap = new Map<string, GalleryGroup>();
+
+        const ordered = gallery.reduce<GalleryGroup[]>((acc, item) => {
+            if (item.collection_id) {
+                const existing = collectionMap.get(item.collection_id);
+                if (existing) {
+                    existing.items.push(item);
+                } else {
+                    const group: GalleryGroup = {
+                        key: item.collection_id,
+                        items: [item],
+                        isCollection: false,
+                    };
+                    collectionMap.set(item.collection_id, group);
+                    acc.push(group);
+                }
+            } else {
+                acc.push({ key: `solo-${item.id}`, items: [item], isCollection: false });
+            }
+            return acc;
+        }, []);
+
+        // Mark groups that actually have > 1 image
+        return ordered.map((g) => ({ ...g, isCollection: g.items.length > 1 }));
+    }, [gallery]);
+
+    // ── Data loading ───────────────────────────────────────────────────────
     const loadGallery = useCallback(async () => {
         try {
             const items = await trainerService.getGallery();
@@ -79,6 +123,7 @@ export default function GalleryScreen() {
         }, [navigation, loadGallery]),
     );
 
+    // ── Upload flow ────────────────────────────────────────────────────────
     const closeUploadPreview = useCallback(() => {
         if (isUploading) return;
         setIsUploadPreviewVisible(false);
@@ -124,38 +169,93 @@ export default function GalleryScreen() {
         }
     }, [captionInput, closeUploadPreview, loadGallery, pendingAssets]);
 
+    // ── Image / carousel modal ─────────────────────────────────────────────
     const closeImageModal = useCallback(() => {
         if (isDeleting) return;
         setIsImageModalVisible(false);
-        setSelectedImage(null);
+        setInnerIndex(0);
     }, [isDeleting]);
 
+    // Reset status bar style when the full-screen viewer closes
+    useEffect(() => {
+        StatusBar.setBarStyle(isImageModalVisible ? 'light-content' : 'dark-content', true);
+    }, [isImageModalVisible]);
+
+    // Vertical scroll → move between gallery groups
+    const handleOuterScroll = useCallback(
+        (event: { nativeEvent: { contentOffset: { y: number } } }) => {
+            const index = Math.round(event.nativeEvent.contentOffset.y / viewerHeight);
+            setSelectedGroupIndex(index);
+            setInnerIndex(0);
+        },
+        [viewerHeight],
+    );
+
+    // Horizontal scroll → move between images inside a collection
+    const handleInnerScroll = useCallback(
+        (event: { nativeEvent: { contentOffset: { x: number } } }) => {
+            const index = Math.round(event.nativeEvent.contentOffset.x / width);
+            setInnerIndex(index);
+        },
+        [width],
+    );
+
+    const handleDeleteCarouselItem = useCallback(() => {
+        const group = galleryGroups[selectedGroupIndex];
+        if (!group) return;
+        const item = group.items[innerIndex];
+        Alert.alert('Delete image', 'Are you sure you want to remove this image?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    setIsDeleting(true);
+                    try {
+                        await trainerService.deleteGalleryImage(item.id);
+                        await loadGallery();
+                        showSuccessToast('Image deleted', 'Success');
+                        closeImageModal();
+                    } catch {
+                        showErrorToast('Failed to delete image', 'Error');
+                    } finally {
+                        setIsDeleting(false);
+                    }
+                },
+            },
+        ]);
+    }, [galleryGroups, selectedGroupIndex, innerIndex, loadGallery, closeImageModal]);
+
+    // ── Select / bulk-delete ───────────────────────────────────────────────
     const cancelSelect = useCallback(() => {
         setIsSelectMode(false);
         setSelectedIds(new Set());
     }, []);
 
-    const toggleSelect = useCallback((id: number) => {
-        setSelectedIds((prev) => {
-            const next = new Set(prev);
-            if (next.has(id)) { next.delete(id); } else { next.add(id); }
-            return next;
-        });
-    }, []);
-
-    const handleLongPress = useCallback((id: number) => {
-        setIsSelectMode(true);
-        setSelectedIds(new Set([id]));
-    }, []);
-
-    const handleTap = useCallback((item: GalleryItem) => {
+    const handleTap = useCallback((group: GalleryGroup) => {
         if (isSelectMode) {
-            toggleSelect(item.id);
+            setSelectedIds((prev) => {
+                const next = new Set(prev);
+                const allSelected = group.items.every((item) => next.has(item.id));
+                if (allSelected) {
+                    group.items.forEach((item) => next.delete(item.id));
+                } else {
+                    group.items.forEach((item) => next.add(item.id));
+                }
+                return next;
+            });
         } else {
-            setSelectedImage(item);
+            const idx = galleryGroups.findIndex((g) => g.key === group.key);
+            setSelectedGroupIndex(idx >= 0 ? idx : 0);
+            setInnerIndex(0);
             setIsImageModalVisible(true);
         }
-    }, [isSelectMode, toggleSelect]);
+    }, [isSelectMode, galleryGroups]);
+
+    const handleLongPress = useCallback((group: GalleryGroup) => {
+        setIsSelectMode(true);
+        setSelectedIds(new Set(group.items.map((item) => item.id)));
+    }, []);
 
     const handleDeleteSelected = useCallback(async () => {
         if (selectedIds.size === 0) return;
@@ -184,44 +284,18 @@ export default function GalleryScreen() {
         }
     }, [selectedIds, loadGallery, cancelSelect]);
 
-    const handleDelete = useCallback((item: GalleryItem, onDeleted?: () => void) => {
-        Alert.alert('Delete image', 'Are you sure you want to remove this image?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Delete',
-                style: 'destructive',
-                onPress: async () => {
-                    setIsDeleting(true);
-                    try {
-                        await trainerService.deleteGalleryImage(item.id);
-                        await loadGallery();
-                        showSuccessToast('Image deleted', 'Success');
-                        onDeleted?.();
-                    } catch {
-                        showErrorToast('Failed to delete image', 'Error');
-                    } finally {
-                        setIsDeleting(false);
-                    }
-                },
-            },
-        ]);
-    }, [loadGallery]);
-
-
-
-    const selectedImageUri = useMemo(() => {
-        if (!selectedImage) return undefined;
-        return withVersion(resolveImageUrl(selectedImage.image_url), version);
-    }, [selectedImage, version]);
-
+    // ── Memos ──────────────────────────────────────────────────────────────
     const pendingPreviewUri = useMemo(() => {
         const firstAsset = pendingAssets[0];
         if (!firstAsset?.uri) return undefined;
         return firstAsset.uri;
     }, [pendingAssets]);
 
+    // ── Render ─────────────────────────────────────────────────────────────
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
+
+            {/* ── Header ── */}
             <View
                 style={{
                     flexDirection: 'row',
@@ -310,25 +384,35 @@ export default function GalleryScreen() {
                 )}
             </View>
 
+            {/* ── Grid ── */}
             {isLoading ? (
                 <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
                     <ActivityIndicator size="large" color={colors.trainerPrimary} />
                 </View>
             ) : (
                 <ScrollView contentContainerStyle={{ padding: 20, paddingBottom: 36 }}>
-                    {gallery.length > 0 ? (
+                    {galleryGroups.length > 0 ? (
                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP }}>
-                            {gallery.map((item) => {
-                                const imageUri = withVersion(resolveImageUrl(item.image_url), version);
+                            {galleryGroups.map((group) => {
+                                const coverItem = group.items[0];
+                                const imageUri = withVersion(resolveImageUrl(coverItem.image_url), version);
                                 if (!imageUri) return null;
 
-                                const isSelected = selectedIds.has(item.id);
+                                const allSelected = group.items.every((item) => selectedIds.has(item.id));
+                                const anySelected = group.items.some((item) => selectedIds.has(item.id));
+                                const isSelected = isSelectMode && allSelected;
+                                const isPartial = isSelectMode && anySelected && !allSelected;
+
+                                let tileBorderColor = 'transparent';
+                                if (isSelected) tileBorderColor = colors.trainerPrimary;
+                                else if (isPartial) tileBorderColor = colors.trainerBorder;
+
                                 return (
                                     <TouchableOpacity
-                                        key={`${item.id}-${version}`}
+                                        key={group.key}
                                         activeOpacity={0.82}
-                                        onPress={() => handleTap(item)}
-                                        onLongPress={() => handleLongPress(item.id)}
+                                        onPress={() => handleTap(group)}
+                                        onLongPress={() => handleLongPress(group)}
                                         style={{ width: tileSize }}
                                     >
                                         <ExpoImage
@@ -341,12 +425,37 @@ export default function GalleryScreen() {
                                                 height: tileSize,
                                                 borderRadius: radius.sm,
                                                 backgroundColor: colors.surface,
-                                                borderWidth: isSelected ? 2 : 0,
-                                                borderColor: isSelected ? colors.trainerPrimary : 'transparent',
+                                                borderWidth: isSelected || isPartial ? 2 : 0,
+                                                borderColor: tileBorderColor,
                                             }}
                                             contentFit="cover"
                                             cachePolicy="none"
                                         />
+
+                                        {/* Collection badge – top-left */}
+                                        {group.isCollection && (
+                                            <View
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 5,
+                                                    left: 5,
+                                                    backgroundColor: 'rgba(0,0,0,0.55)',
+                                                    borderRadius: 4,
+                                                    paddingHorizontal: 5,
+                                                    paddingVertical: 2,
+                                                    flexDirection: 'row',
+                                                    alignItems: 'center',
+                                                    gap: 3,
+                                                }}
+                                            >
+                                                <Ionicons name="copy-outline" size={10} color="#fff" />
+                                                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                                                    {group.items.length}
+                                                </Text>
+                                            </View>
+                                        )}
+
+                                        {/* All-selected checkmark */}
                                         {isSelected && (
                                             <View
                                                 style={{
@@ -363,6 +472,23 @@ export default function GalleryScreen() {
                                             >
                                                 <Ionicons name="checkmark" size={13} color={colors.white} />
                                             </View>
+                                        )}
+
+                                        {/* Partial-selection ring */}
+                                        {isPartial && (
+                                            <View
+                                                style={{
+                                                    position: 'absolute',
+                                                    top: 4,
+                                                    right: 4,
+                                                    width: 22,
+                                                    height: 22,
+                                                    borderRadius: 11,
+                                                    borderWidth: 2,
+                                                    borderColor: colors.trainerPrimary,
+                                                    backgroundColor: 'rgba(255,255,255,0.6)',
+                                                }}
+                                            />
                                         )}
                                     </TouchableOpacity>
                                 );
@@ -412,6 +538,7 @@ export default function GalleryScreen() {
                 </ScrollView>
             )}
 
+            {/* ── Upload preview modal ── */}
             <Modal
                 transparent
                 animationType="fade"
@@ -560,102 +687,179 @@ export default function GalleryScreen() {
                 </KeyboardAvoidingView>
             </Modal>
 
+            {/* ── Full-screen image viewer modal ── */}
             <Modal
-                transparent
+                transparent={false}
                 animationType="fade"
                 visible={isImageModalVisible}
                 onRequestClose={closeImageModal}
                 statusBarTranslucent
                 navigationBarTranslucent
             >
-                <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', justifyContent: 'center', padding: 20 }}>
-                    <View
-                        style={[
-                            {
-                                borderRadius: radius.card,
-                                backgroundColor: colors.white,
-                                padding: 14,
-                                gap: 12,
-                                borderWidth: 1,
-                                borderColor: colors.surfaceBorder,
-                            },
-                            shadow.cardStrong,
-                        ]}
-                    >
-                        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8 }}>
-                            <TouchableOpacity
-                                onPress={() => selectedImage && handleDelete(selectedImage, closeImageModal)}
-                                disabled={!selectedImage || isDeleting}
-                                activeOpacity={0.75}
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    borderRadius: radius.full,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderWidth: 1,
-                                    borderColor: colors.surfaceBorder,
-                                    backgroundColor: colors.surface,
-                                }}
-                            >
-                                <Ionicons name="trash-outline" size={18} color={colors.error} />
-                            </TouchableOpacity>
+                <View
+                    style={{ flex: 1, backgroundColor: '#000' }}
+                    onLayout={(e) => {
+                        const h = e.nativeEvent.layout.height;
+                        if (h > 0) setViewerHeight(h);
+                    }}
+                >
+                    {/*
+                      Outer FlatList — vertical paging, one page per gallery group.
+                      Uses viewerHeight (measured) so snap points are always pixel-perfect.
+                    */}
+                    <FlatList
+                        ref={outerListRef}
+                        data={galleryGroups}
+                        keyExtractor={(group) => group.key}
+                        pagingEnabled
+                        showsVerticalScrollIndicator={false}
+                        onMomentumScrollEnd={handleOuterScroll}
+                        initialScrollIndex={selectedGroupIndex}
+                        style={{ flex: 1 }}
+                        getItemLayout={(_, index) => ({
+                            length: viewerHeight,
+                            offset: viewerHeight * index,
+                            index,
+                        })}
+                        onScrollToIndexFailed={(info) => {
+                            outerListRef.current?.scrollToOffset({
+                                offset: info.index * viewerHeight,
+                                animated: false,
+                            });
+                        }}
+                        renderItem={({ item: group }) => {
+                            if (group.isCollection) {
+                                return (
+                                    <View style={{ width, height: viewerHeight }}>
+                                        <FlatList
+                                            data={group.items}
+                                            keyExtractor={(img) => String(img.id)}
+                                            horizontal
+                                            pagingEnabled
+                                            showsHorizontalScrollIndicator={false}
+                                            onMomentumScrollEnd={handleInnerScroll}
+                                            style={{ flex: 1 }}
+                                            getItemLayout={(_, idx) => ({
+                                                length: width,
+                                                offset: width * idx,
+                                                index: idx,
+                                            })}
+                                            renderItem={({ item }) => {
+                                                const uri = withVersion(resolveImageUrl(item.image_url), version);
+                                                return (
+                                                    <View style={{ width, height: viewerHeight }}>
+                                                        {uri ? (
+                                                            <ExpoImage
+                                                                source={{ uri, headers: { Authorization: `Bearer ${authState.token ?? ''}` } }}
+                                                                style={{ flex: 1 }}
+                                                                contentFit="contain"
+                                                                cachePolicy="none"
+                                                            />
+                                                        ) : (
+                                                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                                                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: fontSize.caption }}>
+                                                                    Image unavailable
+                                                                </Text>
+                                                            </View>
+                                                        )}
+                                                        {!!item.caption?.trim() && (
+                                                            <View style={{ position: 'absolute', bottom: 80, left: 20, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 }}>
+                                                                <Text style={{ color: '#fff', fontSize: fontSize.body, lineHeight: 20 }}>{item.caption}</Text>
+                                                            </View>
+                                                        )}
+                                                    </View>
+                                                );
+                                            }}
+                                        />
+                                    </View>
+                                );
+                            }
 
+                            // Single image — fill the full page
+                            const singleItem = group.items[0];
+                            const uri = withVersion(resolveImageUrl(singleItem.image_url), version);
+                            return (
+                                <View style={{ width, height: viewerHeight }}>
+                                    {uri ? (
+                                        <ExpoImage
+                                            source={{ uri, headers: { Authorization: `Bearer ${authState.token ?? ''}` } }}
+                                            style={{ flex: 1 }}
+                                            contentFit="contain"
+                                            cachePolicy="none"
+                                        />
+                                    ) : (
+                                        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                            <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: fontSize.caption }}>
+                                                Image unavailable
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {!!singleItem.caption?.trim() && (
+                                        <View style={{ position: 'absolute', bottom: 80, left: 20, right: 20, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: radius.sm, paddingHorizontal: 12, paddingVertical: 8 }}>
+                                            <Text style={{ color: '#fff', fontSize: fontSize.body, lineHeight: 20 }}>{singleItem.caption}</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        }}
+                    />
+
+                    {/* Top overlay: close + collection counter + delete */}
+                    <SafeAreaView
+                        edges={['top']}
+                        style={{ position: 'absolute', top: 0, left: 0, right: 0 }}
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 12, gap: 12 }}>
                             <TouchableOpacity
                                 onPress={closeImageModal}
                                 disabled={isDeleting}
                                 activeOpacity={0.75}
-                                style={{
-                                    width: 34,
-                                    height: 34,
-                                    borderRadius: radius.full,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    borderWidth: 1,
-                                    borderColor: colors.surfaceBorder,
-                                    backgroundColor: colors.surface,
-                                }}
+                                style={{ width: 38, height: 38, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
                             >
-                                <Ionicons name="close" size={18} color={colors.textPrimary} />
+                                <Ionicons name="close" size={22} color="#fff" />
+                            </TouchableOpacity>
+
+                            <View style={{ flex: 1, alignItems: 'center' }}>
+                                {(galleryGroups[selectedGroupIndex]?.items.length ?? 0) > 1 && (
+                                    <Text style={{ color: '#fff', fontSize: fontSize.caption, fontWeight: '600' }}>
+                                        {innerIndex + 1}
+                                        {' / '}
+                                        {galleryGroups[selectedGroupIndex]!.items.length}
+                                    </Text>
+                                )}
+                            </View>
+
+                            <TouchableOpacity
+                                onPress={handleDeleteCarouselItem}
+                                disabled={isDeleting}
+                                activeOpacity={0.75}
+                                style={{ width: 38, height: 38, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.45)' }}
+                            >
+                                <Ionicons name="trash-outline" size={20} color="#fff" />
                             </TouchableOpacity>
                         </View>
+                    </SafeAreaView>
 
-                        <View
-                            style={{
-                                borderRadius: radius.sm,
-                                overflow: 'hidden',
-                                backgroundColor: colors.surface,
-                                minHeight: 220,
-                                justifyContent: 'center',
-                                alignItems: 'center',
-                            }}
-                        >
-                            {selectedImage && selectedImageUri && (
-                                <ExpoImage
-                                    source={{
-                                        uri: selectedImageUri,
-                                        headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                    {/* Bottom-center dots — only shown for the currently visible collection */}
+                    {(galleryGroups[selectedGroupIndex]?.items.length ?? 0) > 1 && (
+                        <View style={{ position: 'absolute', bottom: 28, left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5 }}>
+                            {galleryGroups[selectedGroupIndex]!.items.map((item, i) => (
+                                <View
+                                    key={item.id}
+                                    style={{
+                                        width: i === innerIndex ? 18 : 5,
+                                        height: 5,
+                                        borderRadius: 3,
+                                        backgroundColor: i === innerIndex ? '#fff' : 'rgba(255,255,255,0.35)',
                                     }}
-                                    style={{ width: '100%', height: Math.min(containerWidth, 360) }}
-                                    contentFit="contain"
-                                    cachePolicy="none"
                                 />
-                            )}
-
-                            {(!selectedImage || !selectedImageUri) && (
-                                <Text style={{ fontSize: fontSize.caption, color: colors.textMuted }}>Image unavailable</Text>
-                            )}
+                            ))}
                         </View>
-
-                        {!!selectedImage?.caption?.trim() && (
-                            <Text style={{ fontSize: fontSize.body, color: colors.textPrimary, lineHeight: 22 }}>
-                                {selectedImage.caption}
-                            </Text>
-                        )}
-                    </View>
+                    )}
                 </View>
             </Modal>
 
+            {/* ── Full-screen deleting overlay ── */}
             {isDeleting && (
                 <View
                     pointerEvents="none"

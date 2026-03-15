@@ -132,6 +132,8 @@ export interface GalleryItem {
     id: number;
     image_url: string;
     caption?: string;
+    collection_id?: string | null;
+    content_type?: string;
     created_at: string;
 }
 

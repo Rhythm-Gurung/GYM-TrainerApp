@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import * as ImagePicker from 'expo-image-picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     Alert,
@@ -72,6 +72,24 @@ export default function TrainerProfile() {
 
     const [user, setUser] = useState<User | null>(null);
     const [gallery, setGallery] = useState<GalleryItem[]>([]);
+
+    const galleryGroups = useMemo(() => {
+        const collectionMap = new Map<string, { key: string; coverItem: GalleryItem; count: number }>();
+        return gallery.reduce<{ key: string; coverItem: GalleryItem; count: number }[]>((acc, item) => {
+            if (item.collection_id) {
+                if (!collectionMap.has(item.collection_id)) {
+                    const group = { key: item.collection_id, coverItem: item, count: 1 };
+                    collectionMap.set(item.collection_id, group);
+                    acc.push(group);
+                } else {
+                    collectionMap.get(item.collection_id)!.count += 1;
+                }
+            } else {
+                acc.push({ key: `solo-${item.id}`, coverItem: item, count: 1 });
+            }
+            return acc;
+        }, []);
+    }, [gallery]);
     const [isLoading, setIsLoading] = useState(true);
     const [idProofVersion, setIdProofVersion] = useState(Date.now());
     const [galleryVersion, setGalleryVersion] = useState(Date.now());
@@ -581,15 +599,15 @@ export default function TrainerProfile() {
                             </TouchableOpacity>
                         </View>
 
-                        {gallery.length > 0 ? (
+                        {galleryGroups.length > 0 ? (
                             <View style={{ marginTop: 10, flexDirection: 'row', flexWrap: 'wrap', gap: PREVIEW_GAP }}>
-                                {gallery.slice(0, 9).map((item) => {
-                                    const imageUri = withVersion(resolveImageUrl(item.image_url), galleryVersion);
+                                {galleryGroups.slice(0, 9).map((group) => {
+                                    const imageUri = withVersion(resolveImageUrl(group.coverItem.image_url), galleryVersion);
                                     if (!imageUri) return null;
 
                                     return (
                                         <TouchableOpacity
-                                            key={`${item.id}-${galleryVersion}`}
+                                            key={group.key}
                                             activeOpacity={0.82}
                                             onPress={() => router.push('/(tabs)/trainer/profile/gallery' as never)}
                                             style={{ width: previewTileSize }}
@@ -608,6 +626,27 @@ export default function TrainerProfile() {
                                                 contentFit="cover"
                                                 cachePolicy="none"
                                             />
+                                            {group.count > 1 && (
+                                                <View
+                                                    style={{
+                                                        position: 'absolute',
+                                                        top: 4,
+                                                        left: 4,
+                                                        backgroundColor: 'rgba(0,0,0,0.55)',
+                                                        borderRadius: 4,
+                                                        paddingHorizontal: 5,
+                                                        paddingVertical: 2,
+                                                        flexDirection: 'row',
+                                                        alignItems: 'center',
+                                                        gap: 3,
+                                                    }}
+                                                >
+                                                    <Ionicons name="copy-outline" size={10} color="#fff" />
+                                                    <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>
+                                                        {group.count}
+                                                    </Text>
+                                                </View>
+                                            )}
                                         </TouchableOpacity>
                                     );
                                 })}

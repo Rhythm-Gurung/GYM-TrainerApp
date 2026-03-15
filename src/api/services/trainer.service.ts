@@ -254,6 +254,8 @@ export const trainerService = {
           id: Number(row.id ?? index + 1),
           image_url: String(imageUrl),
           caption: row.caption ? String(row.caption) : undefined,
+          collection_id: row.collection_id != null ? String(row.collection_id) : null,
+          content_type: row.content_type ? String(row.content_type) : undefined,
           created_at: String(row.created_at ?? row.uploaded_at ?? ''),
         };
       })
@@ -262,11 +264,12 @@ export const trainerService = {
 
   /**
    * Upload one or more photos to the trainer's gallery.
+   * Returns the newly created gallery items (including collection_id).
    */
   uploadGalleryImages: async (
     files: { uri: string; name: string; type: string }[],
     caption?: string,
-  ): Promise<void> => {
+  ): Promise<GalleryItem[]> => {
     const formData = new FormData();
     formData.append('type', 'images');
     if (caption?.trim()) formData.append('caption', caption.trim());
@@ -277,9 +280,23 @@ export const trainerService = {
         type: file.type,
       } as unknown as Blob);
     });
-    await apiClient.post(API_CONFIG.ENDPOINTS.TRAINER.GALLERY, formData, {
+    const { data } = await apiClient.post(API_CONFIG.ENDPOINTS.TRAINER.GALLERY, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    const candidate = data?.data ?? data?.results ?? data;
+    if (!Array.isArray(candidate)) return [];
+    return candidate.map((item: unknown, index: number) => {
+      const row = (item && typeof item === 'object') ? (item as Record<string, unknown>) : {};
+      const imageUrl = row.image_url ?? row.image ?? row.url ?? row.file ?? '';
+      return {
+        id: Number(row.id ?? index + 1),
+        image_url: String(imageUrl),
+        caption: row.caption ? String(row.caption) : undefined,
+        collection_id: row.collection_id != null ? String(row.collection_id) : null,
+        content_type: row.content_type ? String(row.content_type) : undefined,
+        created_at: String(row.created_at ?? row.uploaded_at ?? ''),
+      };
+    }).filter((item: GalleryItem) => item.image_url.length > 0);
   },
 
   /**

@@ -87,10 +87,13 @@ export interface ScheduleTimeSlot {
     endTime: string; // HH:MM
 }
 
+export type SessionMode = 'online' | 'offline' | 'both';
+
 export interface DaySchedule {
     dayOfWeek: number; // 0 = Sunday … 6 = Saturday
     enabled: boolean;
     slots: ScheduleTimeSlot[];
+    session_mode?: SessionMode;
 }
 
 // Trainer Profile (local computed/display shape)

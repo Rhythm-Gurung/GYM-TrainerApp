@@ -19,6 +19,7 @@ export const API_CONFIG = {
             UPDATE_PROFILE: '/api/system/auth/update-profile/',
         },
         TRAINER: {
+            // ── Profile & Documents ───────────────────────────────────────────────
             REGISTER: '/api/system/auth/register/',
             UPDATE_PROFILE: '/api/trainer/update-profile/',
             UPDATE_PROFILE_DETAILS: '/api/system/trainer/update-profile/',
@@ -27,6 +28,30 @@ export const API_CONFIG = {
             PROFILE_IMAGE: '/api/system/trainer/profile-image/',
             CERTIFICATIONS: '/api/system/trainer/certifications/',
             GALLERY: '/api/system/trainer/gallery/',
+
+            // ── Weekly Schedule ───────────────────────────────────────────────────
+            // GET  /api/trainer/schedule/       → fetch trainer's 7-day recurring schedule
+            // PUT  /api/trainer/schedule/       → replace full 7-day schedule (always all 7 days)
+            SCHEDULE: '/api/trainer/schedule/',
+
+            // ── Availability Overrides (specific unavailable dates) ────────────────
+            // GET    /api/trainer/availability/overrides/?month=YYYY-MM  → list overrides (filter by month)
+            // POST   /api/trainer/availability/overrides/                → block a specific date
+            // PATCH  /api/trainer/availability/overrides/{id}/           → update reason for a blocked date
+            // DELETE /api/trainer/availability/overrides/{id}/           → unblock a specific date
+            AVAILABILITY_OVERRIDES: '/api/trainer/availability/overrides/',
+
+            // ── Schedule Overrides (custom weekly schedule for a date range) ───────
+            // GET    /api/trainer/schedule-overrides/?month=YYYY-MM  → list (filter by month)
+            // POST   /api/trainer/schedule-overrides/                → create for a date range
+            // PUT    /api/trainer/schedule-overrides/{id}/           → update an existing override
+            // DELETE /api/trainer/schedule-overrides/{id}/           → remove an override
+            SCHEDULE_OVERRIDES: '/api/trainer/schedule-overrides/',
+
+            // ── Presets (client-side only — no backend storage needed) ────────────
+            // Presets are hardcoded templates on the frontend. Applying a preset
+            // fills the Daily tab with slot values; trainer must tap Save to persist.
+            PRESETS: '/api/trainer/schedule/presets/',
         },
         TOKEN: {
             REFRESH: '/api/token/refresh/',

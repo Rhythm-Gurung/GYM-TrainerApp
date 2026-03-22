@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -38,6 +38,11 @@ const STAGGER = 60;
 export default function ClientBookings() {
     const tabBarHeight = useTabBarHeight();
     const [activeFilter, setActiveFilter] = useState<FilterValue>('all');
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const handleRefresh = useCallback(() => {
+        setIsRefreshing(true);
+        setTimeout(() => setIsRefreshing(false), 600);
+    }, []);
 
     const filtered =
         activeFilter === 'all'
@@ -139,6 +144,14 @@ export default function ClientBookings() {
                     flexGrow: 1,
                 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                )}
             >
                 {filtered.length > 0 ? (
                     filtered.map((booking, index) => (

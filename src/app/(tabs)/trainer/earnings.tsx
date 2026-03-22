@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    RefreshControl,
     ScrollView,
     Text,
     View,
@@ -37,6 +38,7 @@ export default function TrainerEarnings() {
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const statsY = useSharedValue(SLIDE);
     const commissionY = useSharedValue(SLIDE);
@@ -56,17 +58,25 @@ export default function TrainerEarnings() {
         }, []),
     );
 
+    const fetchData = useCallback(async () => {
+        const { earnings: e, transactions: t } = await fetchMockEarnings();
+        setEarnings(e);
+        setTransactions(t);
+    }, []);
+
     useFocusEffect(
         useCallback(() => {
-            fetchMockEarnings()
-                .then(({ earnings: e, transactions: t }) => {
-                    setEarnings(e);
-                    setTransactions(t);
-                })
+            fetchData()
                 .catch(() => showErrorToast('Failed to load earnings', 'Error'))
                 .finally(() => setIsLoading(false));
-        }, []),
+        }, [fetchData]),
     );
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        await fetchData().catch(() => showErrorToast('Failed to load earnings', 'Error'));
+        setIsRefreshing(false);
+    }, [fetchData]);
 
     const statsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: statsY.value }] }));
     const commissionStyle = useAnimatedStyle(() => ({ transform: [{ translateY: commissionY.value }] }));
@@ -99,6 +109,14 @@ export default function TrainerEarnings() {
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 16 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.trainerPrimary}
+                        colors={[colors.trainerPrimary]}
+                    />
+                )}
             >
                 {/* Hero title */}
                 <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 24, paddingBottom: 80 }}>

@@ -8,6 +8,7 @@ import {
     Alert,
     Image,
     Modal,
+    RefreshControl,
     ScrollView,
     StatusBar,
     Text,
@@ -93,6 +94,7 @@ export default function TrainerProfile() {
         }, []);
     }, [gallery]);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [idProofVersion, setIdProofVersion] = useState(Date.now());
     const [galleryVersion, setGalleryVersion] = useState(Date.now());
     const [isUpdatingProfileImage, setIsUpdatingProfileImage] = useState(false);
@@ -101,7 +103,7 @@ export default function TrainerProfile() {
     const [viewerUri, setViewerUri] = useState<string | null>(null);
     const [viewerNeedsAuth, setViewerNeedsAuth] = useState(false);
     const [isViewerVisible, setIsViewerVisible] = useState(false);
-    const [viewerHeight, setViewerHeight] = useState(0);
+    const [, setViewerHeight] = useState(0);
 
     const openViewer = useCallback((uri: string, needsAuth: boolean) => {
         setViewerUri(uri);
@@ -119,6 +121,14 @@ export default function TrainerProfile() {
     const menuY = useSharedValue(SLIDE);
     const anim = useRef({ cardY, menuY });
 
+    const loadProfile = useCallback(async () => {
+        setIdProofVersion(Date.now());
+        setGalleryVersion(Date.now());
+        const [profile, galleryItems] = await Promise.all([getProfile(), trainerService.getGallery()]);
+        setUser(profile);
+        setGallery(galleryItems);
+    }, [getProfile]);
+
     useFocusEffect(
         useCallback(() => {
             const v = anim.current;
@@ -129,17 +139,17 @@ export default function TrainerProfile() {
             v.menuY.value = withDelay(120, withTiming(0, ease));
 
             setIsLoading(true);
-            setIdProofVersion(Date.now());
-            setGalleryVersion(Date.now());
-            Promise.all([getProfile(), trainerService.getGallery()])
-                .then(([profile, galleryItems]) => {
-                    setUser(profile);
-                    setGallery(galleryItems);
-                })
+            loadProfile()
                 .catch((err) => console.warn('[Profile] whoami failed:', err?.response?.status, err?.response?.data))
                 .finally(() => setIsLoading(false));
-        }, [getProfile]),
+        }, [loadProfile]),
     );
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        await loadProfile().catch((err) => console.warn('[Profile] refresh failed:', err?.response?.status, err?.response?.data));
+        setIsRefreshing(false);
+    }, [loadProfile]);
 
     const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: cardY.value }] }));
     const menuStyle = useAnimatedStyle(() => ({ transform: [{ translateY: menuY.value }] }));
@@ -235,6 +245,14 @@ export default function TrainerProfile() {
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 20 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.trainerPrimary}
+                        colors={[colors.trainerPrimary]}
+                    />
+                )}
             >
                 <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 24, paddingBottom: 80 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -396,7 +414,7 @@ export default function TrainerProfile() {
                             <View style={{ flex: 1, alignItems: 'center' }}>
                                 <Text style={{ fontSize: fontSize.stat, fontWeight: '800', color: colors.textPrimary }}>
                                     {user?.pricing_per_session
-                                        ? `Rs${user.pricing_per_session}`
+                                        ? `₹${user.pricing_per_session}`
                                         : '—'}
                                 </Text>
                                 <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, fontWeight: '500', marginTop: 2 }}>

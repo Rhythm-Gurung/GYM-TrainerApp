@@ -39,11 +39,11 @@ interface Props {
 }
 
 const OPTIONS: { key: ScheduleDurationType; label: string; icon: string }[] = [
-    { key: 'forever',   label: 'Forever',         icon: 'infinite-outline' },
-    { key: 'this_year', label: 'This year',        icon: 'calendar-outline' },
-    { key: 'one_year',  label: '1 Year',           icon: 'refresh-circle-outline' },
-    { key: 'months',    label: 'Specific months',  icon: 'grid-outline' },
-    { key: 'weeks',     label: 'Specific weeks',   icon: 'time-outline' },
+    { key: 'forever', label: 'Forever', icon: 'infinite-outline' },
+    { key: 'this_year', label: 'This year', icon: 'calendar-outline' },
+    { key: 'one_year', label: '1 Year', icon: 'refresh-circle-outline' },
+    { key: 'months', label: 'Specific months', icon: 'grid-outline' },
+    { key: 'weeks', label: 'Specific weeks', icon: 'time-outline' },
 ];
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -84,37 +84,40 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
 
     function computeEffectiveUntil(): string | null {
         switch (selected) {
-            case 'forever':   return null;
+            case 'forever': return null;
             case 'this_year': return endOfThisYear;
-            case 'one_year':  return oneYearFromToday;
+            case 'one_year': return oneYearFromToday;
             case 'months': {
                 const m = futureMonths[selectedMonthIndex];
                 return lastDayOfMonth(m.year, m.month);
             }
-            case 'weeks':     return toYMD(addDays(today, weekCount * 7 - 1));
+            case 'weeks': return toYMD(addDays(today, weekCount * 7 - 1));
             case 'this_week': return endOfThisWeek;
+            default: return null;
         }
     }
 
     function computePlanLabel(): string {
         switch (selected) {
-            case 'forever':   return 'Forever';
+            case 'forever': return 'Forever';
             case 'this_year': return 'This year';
-            case 'one_year':  return '1 Year';
-            case 'months':    return 'Specific months';
-            case 'weeks':     return `${weekCount} ${weekCount === 1 ? 'week' : 'weeks'}`;
+            case 'one_year': return '1 Year';
+            case 'months': return 'Specific months';
+            case 'weeks': return `${weekCount} ${weekCount === 1 ? 'week' : 'weeks'}`;
             case 'this_week': return 'This week only';
+            default: return '';
         }
     }
 
     function getSubtitle(type: ScheduleDurationType): string {
         switch (type) {
-            case 'forever':   return 'No end date — repeats indefinitely';
+            case 'forever': return 'No end date — repeats indefinitely';
             case 'this_year': return `Until Dec 31, ${currentYear}`;
-            case 'one_year':  return `Until ${formatDateShort(oneYearFromToday)}`;
-            case 'months':    return 'Choose an end month below';
-            case 'weeks':     return 'Choose number of weeks below';
+            case 'one_year': return `Until ${formatDateShort(oneYearFromToday)}`;
+            case 'months': return 'Choose an end month below';
+            case 'weeks': return 'Choose number of weeks below';
             case 'this_week': return `Until ${formatDateShort(endOfThisWeek)}`;
+            default: return '';
         }
     }
 
@@ -278,7 +281,7 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
                                                 const isPicked = selectedMonthIndex === i;
                                                 return (
                                                     <TouchableOpacity
-                                                        key={i}
+                                                        key={m.label}
                                                         onPress={() => setSelectedMonthIndex(i)}
                                                         activeOpacity={0.7}
                                                         style={{
@@ -347,7 +350,7 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
                                                     {weekCount === 1 ? 'week' : 'weeks'}
                                                 </Text>
                                                 <Text style={{ fontSize: fontSize.tag, color: colors.trainerPrimary, fontWeight: '600', marginTop: 4 }}>
-                                                    Until {formatDateShort(toYMD(addDays(today, weekCount * 7 - 1)))}
+                                                    {`Until ${formatDateShort(toYMD(addDays(today, weekCount * 7 - 1)))}`}
                                                 </Text>
                                             </View>
 

@@ -11,9 +11,9 @@ export type ScheduleDurationType = 'forever' | 'this_year' | 'one_year' | 'month
  * because the same date can correspond to different plan types.
  */
 export interface ScheduleScope {
-    effective_from: string;        // YYYY-MM-DD  — from API
+    effective_from: string; // YYYY-MM-DD  — from API
     effective_until: string | null; // YYYY-MM-DD or null = forever  — from API
-    planLabel?: string;            // e.g. "Forever", "1 Year", "4 weeks"  — from AsyncStorage
+    planLabel?: string; // e.g. "Forever", "1 Year", "4 weeks"  — from AsyncStorage
 }
 
 /**

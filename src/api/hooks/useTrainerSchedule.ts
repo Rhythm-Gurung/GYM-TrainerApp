@@ -168,7 +168,7 @@ export function useTrainerSchedule() {
 
     const updateSlot = useCallback(
         (dayIndex: number, slotId: string, field: 'startTime' | 'endTime', value: string) => {
-            console.warn('[hook:schedule] updateSlot → dayIndex:', dayIndex, 'slotId:', slotId, field + ':', value);
+            console.warn('[hook:schedule] updateSlot → dayIndex:', dayIndex, 'slotId:', slotId, `${field}:`, value);
             setSchedule((prev) =>
                 prev.map((d) =>
                     (d.dayOfWeek === dayIndex
@@ -202,7 +202,7 @@ export function useTrainerSchedule() {
      */
     const toggleDateOverride = useCallback(async (dateStr: string, reason?: string) => {
         const existing = dateOverrides.find((o) => o.date === dateStr);
-        console.warn('[hook:schedule] toggleDateOverride → date:', dateStr, existing ? 'action: UNBLOCK id:' + existing.id : 'action: BLOCK');
+        console.warn('[hook:schedule] toggleDateOverride → date:', dateStr, existing ? `action: UNBLOCK id:${existing.id}` : 'action: BLOCK');
 
         if (existing) {
             // ── Unblock: optimistic remove ────────────────────────────────────

@@ -3,6 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    RefreshControl,
     ScrollView,
     Text,
     TouchableOpacity,
@@ -58,6 +59,7 @@ export default function TrainerDashboard() {
     const [sessions, setSessions] = useState<TrainerSession[]>([]);
     const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const statsY = useSharedValue(SLIDE);
     const actionsY = useSharedValue(SLIDE);
@@ -81,17 +83,25 @@ export default function TrainerDashboard() {
         }, []),
     );
 
+    const fetchData = useCallback(async () => {
+        const { sessions: s, earnings: e } = await fetchMockTrainerDashboard();
+        setSessions(s);
+        setEarnings(e);
+    }, []);
+
     useFocusEffect(
         useCallback(() => {
-            fetchMockTrainerDashboard()
-                .then(({ sessions: s, earnings: e }) => {
-                    setSessions(s);
-                    setEarnings(e);
-                })
+            fetchData()
                 .catch(() => showErrorToast('Failed to load dashboard', 'Error'))
                 .finally(() => setIsLoading(false));
-        }, []),
+        }, [fetchData]),
     );
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        await fetchData().catch(() => showErrorToast('Failed to load dashboard', 'Error'));
+        setIsRefreshing(false);
+    }, [fetchData]);
 
     const statsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: statsY.value }] }));
     const actionsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: actionsY.value }] }));
@@ -128,6 +138,14 @@ export default function TrainerDashboard() {
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 16 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.trainerPrimary}
+                        colors={[colors.trainerPrimary]}
+                    />
+                )}
             >
                 {/* Hero title row */}
                 <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 24, paddingBottom: 80, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>

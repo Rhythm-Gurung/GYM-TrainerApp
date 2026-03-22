@@ -1,10 +1,13 @@
     import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
+import type { DateOverride, ScheduleOverride, ScheduleScope } from '@/types/trainerAvailability.types';
 import type {
-  CertificationListItem,
-  GalleryItem,
-  TrainerRegisterInput,
-  TrainerRegisterResponse,
+    CertificationListItem,
+    DaySchedule,
+    GalleryItem,
+    SessionMode,
+    TrainerRegisterInput,
+    TrainerRegisterResponse,
 } from '@/types/trainerTypes';
 
 export const trainerService = {
@@ -313,5 +316,281 @@ export const trainerService = {
    */
   deleteGalleryImage: async (galleryId: number): Promise<void> => {
     await apiClient.delete(`${API_CONFIG.ENDPOINTS.TRAINER.GALLERY}${galleryId}/`);
+  },
+
+  // ─── Schedule ────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch the trainer's 7-day recurring weekly schedule plus its active scope.
+   * Maps snake_case API fields → camelCase DaySchedule type.
+   * Always returns 7 items (backend guarantees this even on first load).
+   */
+  getSchedule: async (): Promise<{ schedule: DaySchedule[]; scope: ScheduleScope | null }> => {
+    console.warn('[svc:schedule] GET schedule → request');
+    const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.TRAINER.SCHEDULE);
+    console.warn('[svc:schedule] GET schedule ← raw response:', JSON.stringify(data));
+    const items: unknown[] = Array.isArray(data?.data) ? data.data : [];
+    const schedule = items.map((item: unknown) => {
+      const row = item as Record<string, unknown>;
+      const rawSlots = Array.isArray(row.slots) ? row.slots : [];
+      return {
+        dayOfWeek: Number(row.day_of_week ?? 0),
+        enabled: Boolean(row.enabled),
+        session_mode: (['online', 'offline', 'both'].includes(String(row.session_mode))
+          ? String(row.session_mode) as SessionMode
+          : 'both'),
+        slots: rawSlots.map((s: unknown, idx: number) => {
+          const slot = s as Record<string, unknown>;
+          return {
+            id: `${row.day_of_week}-api-${idx}`,
+            startTime: String(slot.start_time ?? '09:00'),
+            endTime: String(slot.end_time ?? '10:00'),
+          };
+        }),
+      };
+    });
+    const scope: ScheduleScope | null = data?.effective_from != null
+      ? {
+          effective_from: String(data.effective_from),
+          effective_until: data.effective_until ? String(data.effective_until) : null,
+        }
+      : null;
+    console.warn('[svc:schedule] GET schedule ← parsed scope:', JSON.stringify(scope));
+    console.warn('[svc:schedule] GET schedule ← parsed days:', schedule.length, 'days,', schedule.filter(d => d.enabled).length, 'enabled');
+    return { schedule, scope };
+  },
+
+  /**
+   * Replace the trainer's entire weekly schedule.
+   * Always sends all 7 days. slot.id is stripped — backend only needs start/end times.
+   * Pass effectiveFrom / effectiveUntil to bound the schedule to a time range;
+   * omit both for the current indefinite behavior.
+   */
+  saveSchedule: async (
+    schedule: DaySchedule[],
+    effectiveFrom?: string,
+    effectiveUntil?: string | null,
+  ): Promise<number> => {
+    const payload: Record<string, unknown> = {
+      schedule: schedule.map((d) => ({
+        day_of_week: d.dayOfWeek,
+        enabled: d.enabled,
+        session_mode: d.session_mode ?? 'both',
+        slots: d.slots.map(({ startTime, endTime }) => ({
+          start_time: startTime,
+          end_time: endTime,
+        })),
+      })),
+    };
+    if (effectiveFrom !== undefined) payload.effective_from = effectiveFrom;
+    if (effectiveUntil !== undefined) payload.effective_until = effectiveUntil ?? null;
+    console.warn('[svc:schedule] PUT schedule → payload:', JSON.stringify(payload));
+    const response = await apiClient.put(API_CONFIG.ENDPOINTS.TRAINER.SCHEDULE, payload);
+    console.warn('[svc:schedule] PUT schedule ← status:', response.status);
+    return response.status;
+  },
+
+  // ─── Availability Overrides ───────────────────────────────────────────────────
+
+  /**
+   * Fetch date overrides for this trainer.
+   * Pass month as "YYYY-MM" (e.g. "2026-03") to filter by month — recommended
+   * to keep the response small. Omit for all overrides.
+   */
+  getDateOverrides: async (month?: string): Promise<DateOverride[]> => {
+    const params = month ? { month } : {};
+    console.warn('[svc:schedule] GET dateOverrides → params:', JSON.stringify(params));
+    const { data } = await apiClient.get(
+      API_CONFIG.ENDPOINTS.TRAINER.AVAILABILITY_OVERRIDES,
+      { params },
+    );
+    const items: unknown[] = Array.isArray(data?.data) ? data.data : [];
+    const result = items.map((item: unknown) => {
+      const row = item as Record<string, unknown>;
+      return {
+        id: Number(row.id),
+        date: String(row.date),
+        reason: row.reason ? String(row.reason) : undefined,
+      };
+    });
+    console.warn('[svc:schedule] GET dateOverrides ← count:', result.length, JSON.stringify(result.map(o => o.date)));
+    return result;
+  },
+
+  /**
+   * Block a specific date. Returns the created override including its backend id.
+   * Backend returns 400 if the date is already blocked.
+   */
+  createDateOverride: async (date: string, reason?: string): Promise<{ status: number; override: DateOverride }> => {
+    const body: Record<string, string> = { date };
+    if (reason) body.reason = reason;
+    console.warn('[svc:schedule] POST dateOverride → body:', JSON.stringify(body));
+    const { data, status } = await apiClient.post(
+      API_CONFIG.ENDPOINTS.TRAINER.AVAILABILITY_OVERRIDES,
+      body,
+    );
+    console.warn('[svc:schedule] POST dateOverride ← status:', status, 'data:', JSON.stringify(data));
+    const row = (data?.data ?? data) as Record<string, unknown>;
+    return {
+      status,
+      override: {
+        id: Number(row.id),
+        date: String(row.date),
+        reason: row.reason ? String(row.reason) : undefined,
+      },
+    };
+  },
+
+  /**
+   * Update the reason text of an existing override without deleting/re-creating it.
+   */
+  patchDateOverride: async (overrideId: number, reason: string): Promise<void> => {
+    console.warn('[svc:schedule] PATCH dateOverride → id:', overrideId, 'reason:', reason);
+    const response = await apiClient.patch(
+      `${API_CONFIG.ENDPOINTS.TRAINER.AVAILABILITY_OVERRIDES}${overrideId}/`,
+      { reason },
+    );
+    console.warn('[svc:schedule] PATCH dateOverride ← status:', response.status);
+  },
+
+  /**
+   * Unblock a specific date — removes the override so the weekly schedule takes over again.
+   */
+  deleteDateOverride: async (overrideId: number): Promise<number> => {
+    console.warn('[svc:schedule] DELETE dateOverride → id:', overrideId);
+    const { status } = await apiClient.delete(
+      `${API_CONFIG.ENDPOINTS.TRAINER.AVAILABILITY_OVERRIDES}${overrideId}/`,
+    );
+    console.warn('[svc:schedule] DELETE dateOverride ← status:', status);
+    return status;
+  },
+
+  // ─── Schedule Overrides (per-week custom schedules) ───────────────────────────
+
+  /**
+   * Fetch schedule overrides, optionally filtered to a month (YYYY-MM).
+   * Each override covers a specific date range with its own 7-day schedule.
+   * Filter by month (YYYY-MM) to keep the response small.
+   */
+  getScheduleOverrides: async (month?: string): Promise<ScheduleOverride[]> => {
+    const params = month ? { month } : {};
+    console.warn('[svc:schedule] GET scheduleOverrides → params:', JSON.stringify(params));
+    const { data } = await apiClient.get(
+      API_CONFIG.ENDPOINTS.TRAINER.SCHEDULE_OVERRIDES,
+      { params },
+    );
+    console.warn('[svc:schedule] GET scheduleOverrides ← raw:', JSON.stringify(data));
+    let items: unknown[] = [];
+    if (Array.isArray(data?.data)) items = data.data;
+    else if (Array.isArray(data)) items = data;
+    console.warn('[svc:schedule] GET scheduleOverrides ← count:', items.length);
+    return items.map((item: unknown) => {
+      const row = item as Record<string, unknown>;
+      const rawSchedule = Array.isArray(row.schedule) ? row.schedule : [];
+      return {
+        id: Number(row.id),
+        start_date: String(row.start_date),
+        end_date: String(row.end_date),
+        schedule: rawSchedule.map((d: unknown) => {
+          const day = d as Record<string, unknown>;
+          const rawSlots = Array.isArray(day.slots) ? day.slots : [];
+          return {
+            dayOfWeek: Number(day.day_of_week ?? 0),
+            enabled: Boolean(day.enabled),
+            session_mode: (['online', 'offline', 'both'].includes(String(day.session_mode))
+              ? String(day.session_mode) as SessionMode
+              : 'both'),
+            slots: rawSlots.map((s: unknown, idx: number) => {
+              const slot = s as Record<string, unknown>;
+              return {
+                id: `${day.day_of_week}-override-${idx}`,
+                startTime: String(slot.start_time ?? '09:00'),
+                endTime: String(slot.end_time ?? '10:00'),
+              };
+            }),
+          };
+        }),
+        created_at: row.created_at ? String(row.created_at) : undefined,
+        updated_at: row.updated_at ? String(row.updated_at) : undefined,
+      };
+    });
+  },
+
+  /**
+   * Create a schedule override for a specific date range.
+   * start_date / end_date define the week (or any range) to customize.
+   */
+  createScheduleOverride: async (
+    startDate: string,
+    endDate: string,
+    schedule: DaySchedule[],
+  ): Promise<ScheduleOverride> => {
+    const payload = {
+      start_date: startDate,
+      end_date: endDate,
+      schedule: schedule.map((d) => ({
+        day_of_week: d.dayOfWeek,
+        enabled: d.enabled,
+        session_mode: d.session_mode ?? 'both',
+        slots: d.slots.map(({ startTime, endTime }) => ({
+          start_time: startTime,
+          end_time: endTime,
+        })),
+      })),
+    };
+    console.warn('[svc:schedule] POST scheduleOverride → payload:', JSON.stringify(payload));
+    const { data } = await apiClient.post(
+      API_CONFIG.ENDPOINTS.TRAINER.SCHEDULE_OVERRIDES,
+      payload,
+    );
+    console.warn('[svc:schedule] POST scheduleOverride ← data:', JSON.stringify(data));
+    const row = (data?.data ?? data) as Record<string, unknown>;
+    return (await trainerService.getScheduleOverrides()).find((o) => o.id === Number(row.id))
+      ?? { id: Number(row.id), start_date: startDate, end_date: endDate, schedule };
+  },
+
+  /**
+   * Replace an existing schedule override (dates + schedule).
+   */
+  updateScheduleOverride: async (
+    id: number,
+    startDate: string,
+    endDate: string,
+    schedule: DaySchedule[],
+  ): Promise<ScheduleOverride> => {
+    const payload = {
+      start_date: startDate,
+      end_date: endDate,
+      schedule: schedule.map((d) => ({
+        day_of_week: d.dayOfWeek,
+        enabled: d.enabled,
+        session_mode: d.session_mode ?? 'both',
+        slots: d.slots.map(({ startTime, endTime }) => ({
+          start_time: startTime,
+          end_time: endTime,
+        })),
+      })),
+    };
+    console.warn('[svc:schedule] PUT scheduleOverride → id:', id, 'payload:', JSON.stringify(payload));
+    const { data } = await apiClient.put(
+      `${API_CONFIG.ENDPOINTS.TRAINER.SCHEDULE_OVERRIDES}${id}/`,
+      payload,
+    );
+    console.warn('[svc:schedule] PUT scheduleOverride ← data:', JSON.stringify(data));
+    const row = (data?.data ?? data) as Record<string, unknown>;
+    return (await trainerService.getScheduleOverrides()).find((o) => o.id === Number(row.id))
+      ?? { id, start_date: startDate, end_date: endDate, schedule };
+  },
+
+  /**
+   * Delete a schedule override — that week reverts to the default recurring schedule.
+   */
+  deleteScheduleOverride: async (id: number): Promise<number> => {
+    console.warn('[svc:schedule] DELETE scheduleOverride → id:', id);
+    const { status } = await apiClient.delete(
+      `${API_CONFIG.ENDPOINTS.TRAINER.SCHEDULE_OVERRIDES}${id}/`,
+    );
+    console.warn('[svc:schedule] DELETE scheduleOverride ← status:', status);
+    return status;
   },
 };

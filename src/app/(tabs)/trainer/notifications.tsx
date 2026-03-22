@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef } from 'react';
-import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useRef, useState } from 'react';
+import { RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -15,7 +15,7 @@ const STAGGER = 55;
 
 // Shared values declared per-slot to satisfy React hook rules (no hooks in loops).
 // Count matches MOCK_TRAINER_NOTIFICATIONS length (5).
-function TrainerNotificationList() {
+function TrainerNotificationList({ isRefreshing, onRefresh }: { isRefreshing: boolean; onRefresh: () => void }) {
     const x0 = useSharedValue(SLIDE);
     const x1 = useSharedValue(SLIDE);
     const x2 = useSharedValue(SLIDE);
@@ -52,6 +52,14 @@ function TrainerNotificationList() {
         <ScrollView
             contentContainerStyle={{ padding: 20, paddingBottom: 24 }}
             showsVerticalScrollIndicator={false}
+            refreshControl={(
+                <RefreshControl
+                    refreshing={isRefreshing}
+                    onRefresh={onRefresh}
+                    tintColor={colors.trainerPrimary}
+                    colors={[colors.trainerPrimary]}
+                />
+            )}
         >
             {MOCK_TRAINER_NOTIFICATIONS.map((item, index) => (
                 <NotificationCard
@@ -69,6 +77,11 @@ function TrainerNotificationList() {
 
 export default function TrainerNotifications() {
     const router = useRouter();
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const handleRefresh = useCallback(() => {
+        setIsRefreshing(true);
+        setTimeout(() => setIsRefreshing(false), 600);
+    }, []);
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right', 'bottom']}>
@@ -118,7 +131,7 @@ export default function TrainerNotifications() {
                 </TouchableOpacity>
             </View>
 
-            <TrainerNotificationList />
+            <TrainerNotificationList isRefreshing={isRefreshing} onRefresh={handleRefresh} />
         </SafeAreaView>
     );
 }

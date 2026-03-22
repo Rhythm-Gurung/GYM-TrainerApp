@@ -3,6 +3,7 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    RefreshControl,
     ScrollView,
     Text,
     TouchableOpacity,
@@ -38,6 +39,7 @@ export default function TrainerBookings() {
     const [bookings, setBookings] = useState<TrainerSession[]>([]);
     const [activeTab, setActiveTab] = useState<BookingFilterStatus>('pending');
     const [isLoading, setIsLoading] = useState(true);
+    const [isRefreshing, setIsRefreshing] = useState(false);
 
     const listY = useSharedValue(SLIDE);
     const listOpacity = useSharedValue(0);
@@ -53,14 +55,24 @@ export default function TrainerBookings() {
         }, []),
     );
 
+    const fetchData = useCallback(async () => {
+        const data = await fetchMockTrainerBookings();
+        setBookings(data);
+    }, []);
+
     useFocusEffect(
         useCallback(() => {
-            fetchMockTrainerBookings()
-                .then(setBookings)
+            fetchData()
                 .catch(() => showErrorToast('Failed to load bookings', 'Error'))
                 .finally(() => setIsLoading(false));
-        }, []),
+        }, [fetchData]),
     );
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        await fetchData().catch(() => showErrorToast('Failed to load bookings', 'Error'));
+        setIsRefreshing(false);
+    }, [fetchData]);
 
     // Sync active tab from navigation param every time the screen is focused
     useFocusEffect(
@@ -175,6 +187,14 @@ export default function TrainerBookings() {
                     flexGrow: 1,
                 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.trainerPrimary}
+                        colors={[colors.trainerPrimary]}
+                    />
+                )}
             >
                 {filtered.length > 0 ? (
                     filtered.map((session) => (

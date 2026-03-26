@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
 
 import { colors, fontSize, radius } from '@/constants/theme';
@@ -11,31 +11,43 @@ import type { Booking } from '@/types/clientTypes';
 type BookingStatus = Booking['status'];
 
 const STATUS_LABEL: Record<BookingStatus, string> = {
+    pending: 'Pending',
+    accepted: 'Accepted',
     confirmed: 'Confirmed',
     completed: 'Completed',
-    pending: 'Pending',
     cancelled: 'Cancelled',
+    refund_pending: 'Refund Pending',
+    refunded: 'Refunded',
 };
 
 const STATUS_COLOR: Record<BookingStatus, string> = {
+    pending: colors.accent,
+    accepted: colors.primary,
     confirmed: colors.primary,
     completed: colors.success,
-    pending: colors.accent,
     cancelled: colors.error,
+    refund_pending: colors.accent,
+    refunded: colors.success,
 };
 
 const STATUS_BG: Record<BookingStatus, string> = {
+    pending: colors.accentBg,
+    accepted: colors.primaryMuted,
     confirmed: colors.primaryMuted,
     completed: colors.statusNewBg,
-    pending: colors.accentBg,
     cancelled: colors.errorBg,
+    refund_pending: colors.accentBg,
+    refunded: colors.statusNewBg,
 };
 
 const STATUS_ICON: Record<BookingStatus, keyof typeof Ionicons.glyphMap> = {
+    pending: 'time-outline',
+    accepted: 'checkmark-circle-outline',
     confirmed: 'checkmark-circle-outline',
     completed: 'trophy-outline',
-    pending: 'time-outline',
     cancelled: 'close-circle-outline',
+    refund_pending: 'refresh-outline',
+    refunded: 'checkmark-done-outline',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -50,12 +62,16 @@ function formatDate(dateStr: string): string {
 
 export interface BookingCardProps {
     booking: Booking;
-    animX: SharedValue<number>;
+    /** Optional shared value for coordinated stagger animations from the parent. */
+    animX?: SharedValue<number>;
 }
 
 export default function BookingCard({ booking, animX }: BookingCardProps) {
+    // Fallback for when the parent doesn't supply an animX (e.g. dynamic lists)
+    const fallbackX = useSharedValue(0);
+    const xValue = animX ?? fallbackX;
     const animStyle = useAnimatedStyle(() => ({
-        transform: [{ translateX: animX.value }],
+        transform: [{ translateX: xValue.value }],
     }));
 
     return (

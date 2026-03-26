@@ -1,9 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useMemo, useState } from 'react';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
+import { useAuth } from '@/contexts/auth';
+import { resolveImageUrl } from '@/lib';
 import { colors, fontSize, radius } from '@/constants/theme';
 import type { Trainer } from '@/types/clientTypes';
 
@@ -18,6 +21,7 @@ interface ImmersiveTrainerCardProps {
 }
 
 export default function ImmersiveTrainerCard({ trainer, index, animKey, onPress }: ImmersiveTrainerCardProps) {
+    const { authState } = useAuth();
     const [liked, setLiked] = useState(trainer.isFavorited ?? false);
 
     const initials = useMemo(
@@ -54,7 +58,15 @@ export default function ImmersiveTrainerCard({ trainer, index, animKey, onPress 
                 }}
             >
                 {trainer.avatar ? (
-                    <Image source={{ uri: trainer.avatar }} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
+                    <ExpoImage
+                        source={{
+                            uri: resolveImageUrl(trainer.avatar),
+                            headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                        }}
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+                        contentFit="cover"
+                        cachePolicy="none"
+                    />
                 ) : (
                     <LinearGradient
                         colors={[colors.primaryMuted, colors.primaryBorder]}

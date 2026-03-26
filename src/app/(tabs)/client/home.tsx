@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef } from 'react';
 import {
@@ -19,8 +20,13 @@ import HeroGradient from '@/components/ui/HeroGradient';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerCard from '@/components/client/TrainerCard';
 import { colors, fontSize, gradientColors, radius } from '@/constants/theme';
-import { expertiseCategories, mockTrainers, unreadNotificationCount } from '@/data/mockData';
+import { expertiseCategories, unreadNotificationCount } from '@/data/mockData';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
+import { clientService } from '@/api/services/client.service';
+import { useApiQuery } from '@/api/hooks/useApiQuery';
+import { useAuth } from '@/contexts/auth';
+import { resolveImageUrl } from '@/lib';
+import { mapApiTrainer } from '@/types/clientTypes';
 
 function getGreeting(): string {
     const h = new Date().getHours();
@@ -29,8 +35,6 @@ function getGreeting(): string {
     return 'Good Evening';
 }
 
-const topTrainers = mockTrainers.filter((t) => t.rating >= 4.8).slice(0, 3);
-const recentlyViewed = mockTrainers.slice(0, 4);
 const categories = expertiseCategories.slice(0, 8);
 
 // Positive translateY = element starts BELOW its final position → slides UP
@@ -41,6 +45,18 @@ export default function ClientHome() {
     const router = useRouter();
     const tabBarHeight = useTabBarHeight();
     const greeting = getGreeting();
+    const { authState } = useAuth();
+    const authHeader = { Authorization: `Bearer ${authState.token ?? ''}` };
+
+    const { data: apiTrainers } = useApiQuery(
+        'client:trainers',
+        () => clientService.getTrainers(),
+        { staleTime: 2 * 60 * 1000 },
+    );
+
+    const allTrainers = (apiTrainers ?? []).map(mapApiTrainer);
+    const topTrainers = allTrainers.filter((t) => t.rating >= 4.8).slice(0, 3);
+    const recentlyViewed = allTrainers.slice(0, 4);
 
     const statsY = useSharedValue(SLIDE);
     const catsY = useSharedValue(SLIDE);
@@ -241,6 +257,7 @@ export default function ClientHome() {
                             {recentlyViewed.map((t) => {
                                 const initials = t.name.split(' ').map((n) => n[0]).join('');
                                 const firstName = t.name.split(' ')[0];
+                                const avatarUri = resolveImageUrl(t.avatar);
                                 return (
                                     <TouchableOpacity
                                         key={t.id}
@@ -248,22 +265,37 @@ export default function ClientHome() {
                                         activeOpacity={0.75}
                                         style={{ width: 72, alignItems: 'center', gap: 8 }}
                                     >
-                                        <View
-                                            style={{
-                                                width: 56,
-                                                height: 56,
-                                                borderRadius: radius.card,
-                                                backgroundColor: colors.primaryMuted,
-                                                alignItems: 'center',
-                                                justifyContent: 'center',
-                                                borderWidth: 1.5,
-                                                borderColor: colors.primaryBorderSm,
-                                            }}
-                                        >
-                                            <Text style={{ fontSize: fontSize.card, fontWeight: '700', color: colors.primary }}>
-                                                {initials}
-                                            </Text>
-                                        </View>
+                                        {avatarUri ? (
+                                            <ExpoImage
+                                                source={{ uri: avatarUri, headers: authHeader }}
+                                                style={{
+                                                    width: 56,
+                                                    height: 56,
+                                                    borderRadius: radius.card,
+                                                    borderWidth: 1.5,
+                                                    borderColor: colors.primaryBorderSm,
+                                                }}
+                                                contentFit="cover"
+                                                cachePolicy="memory-disk"
+                                            />
+                                        ) : (
+                                            <View
+                                                style={{
+                                                    width: 56,
+                                                    height: 56,
+                                                    borderRadius: radius.card,
+                                                    backgroundColor: colors.primaryMuted,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    borderWidth: 1.5,
+                                                    borderColor: colors.primaryBorderSm,
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: fontSize.card, fontWeight: '700', color: colors.primary }}>
+                                                    {initials}
+                                                </Text>
+                                            </View>
+                                        )}
                                         <Text
                                             style={{ fontSize: fontSize.caption, color: colors.textMuted, fontWeight: '500', textAlign: 'center' }}
                                             numberOfLines={1}

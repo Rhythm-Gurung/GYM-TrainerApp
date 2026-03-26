@@ -2,9 +2,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
     LayoutAnimation,
     Platform,
+    RefreshControl,
     ScrollView,
     Text,
     TouchableOpacity,
@@ -22,9 +24,12 @@ import ClientChip, { ClientRatingChip } from '@/components/client/ClientChip';
 import ClientDiscoverTopControls from '@/components/client/ClientDiscoverTopControls';
 import ImmersiveTrainerCard from '@/components/client/ImmersiveTrainerCard';
 import { colors, fontSize } from '@/constants/theme';
-import { expertiseCategories, locations, mockTrainers } from '@/data/mockData';
+import { expertiseCategories, locations } from '@/data/mockData';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { buildMosaicRows } from '@/lib/mosaic';
+import { clientService } from '@/api/services/client.service';
+import { useApiQuery } from '@/api/hooks/useApiQuery';
+import { mapApiTrainer } from '@/types/clientTypes';
 import type { Trainer } from '@/types/clientTypes';
 
 // Enable LayoutAnimation on Android
@@ -130,21 +135,26 @@ export default function ClientDiscover() {
     const [showFilters, setShowFilters] = useState(false);
     const [animKey, setAnimKey] = useState(0);
 
-    // Same pattern as home.tsx: animate content sections, not structural containers.
-    // Structural containers (header shell, filter shell) stay fixed — only the
-    // content rows inside them slide up with overflow: 'visible', preventing
-    // any gap/black-border artifact between blocks.
     const sortY = useSharedValue(SLIDE);
-
     const anim = useRef({ sortY });
+
+    // ── Fetch trainers from API ────────────────────────────────────────────────
+    const { data: apiTrainers, isLoading, isFetching, refetch } = useApiQuery(
+        'client:trainers',
+        () => clientService.getTrainers(),
+        { staleTime: 2 * 60 * 1000 },
+    );
+
+    const trainers: Trainer[] = useMemo(
+        () => (apiTrainers ?? []).map(mapApiTrainer),
+        [apiTrainers],
+    );
 
     useFocusEffect(
         useCallback(() => {
             const v = anim.current;
-
             v.sortY.value = SLIDE;
             v.sortY.value = withTiming(0, { duration: DUR });
-
             setAnimKey((k) => k + 1);
         }, []),
     );
@@ -181,7 +191,7 @@ export default function ClientDiscover() {
     const filteredTrainers = useMemo(() => {
         const q = searchQuery.toLowerCase().trim();
 
-        const filtered = mockTrainers.filter((t) => {
+        const filtered = trainers.filter((t) => {
             if (q) {
                 const hit =
                     t.name.toLowerCase().includes(q) ||
@@ -196,7 +206,7 @@ export default function ClientDiscover() {
         });
 
         return applySort(filtered, filters.sortBy);
-    }, [searchQuery, filters]);
+    }, [searchQuery, filters, trainers]);
 
     const trainerRows = useMemo(
         () => buildMosaicRows(filteredTrainers, { patterns: [...DISCOVER_MOSAIC_PATTERNS] })
@@ -209,7 +219,7 @@ export default function ClientDiscover() {
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['top']}>
 
-            {/* ── Header shell — static, never moves (matches home.tsx pattern) ── */}
+            {/* ── Header shell ── */}
             <View
                 style={{
                     backgroundColor: colors.background,
@@ -230,7 +240,7 @@ export default function ClientDiscover() {
                     showFilters={showFilters}
                 />
 
-                {/* Sort chips — content section that slides up inside the static shell */}
+                {/* Sort chips */}
                 <Animated.View style={[{ overflow: 'visible' }, sortStyle]}>
                     <ScrollView
                         horizontal
@@ -250,7 +260,7 @@ export default function ClientDiscover() {
                 </Animated.View>
             </View>
 
-            {/* ── Collapsible filter panel — static shell, LayoutAnimation handles open/close ── */}
+            {/* ── Collapsible filter panel ── */}
             {showFilters && (
                 <View
                     style={{
@@ -330,70 +340,86 @@ export default function ClientDiscover() {
                 </View>
             )}
 
-            {/* ── Immersive grid results — card animations handled by animKey inside ImmersiveTrainerCard ── */}
-            <View style={{ flex: 1 }}>
-                <FlatList<TrainerTile[]>
-                    data={trainerRows}
-                    keyExtractor={(row) => row.map((tile) => tile.trainer.id).join('-')}
-                    renderItem={({ item: row }) => {
-                        if (row.length === 1) {
-                            const tile = row[0];
-                            return (
-                                <GridCard
-                                    trainer={tile.trainer}
-                                    index={tile.index}
-                                    animKey={animKey}
-                                    fullWidth
-                                    onPress={() => router.push(`/client/trainerProfile?id=${tile.trainer.id}`)}
-                                />
-                            );
-                        }
+            {/* ── Loading state ── */}
+            {isLoading && (
+                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+                    <ActivityIndicator size="large" color={colors.primary} />
+                </View>
+            )}
 
-                        return (
-                            <View style={{ flexDirection: 'row', gap: 12 }}>
-                                {row.map((tile) => (
+            {/* ── Grid results ── */}
+            {!isLoading && (
+                <View style={{ flex: 1 }}>
+                    <FlatList<TrainerTile[]>
+                        data={trainerRows}
+                        keyExtractor={(row) => row.map((tile) => tile.trainer.id).join('-')}
+                        renderItem={({ item: row }) => {
+                            if (row.length === 1) {
+                                const tile = row[0];
+                                return (
                                     <GridCard
-                                        key={tile.trainer.id}
                                         trainer={tile.trainer}
                                         index={tile.index}
                                         animKey={animKey}
+                                        fullWidth
                                         onPress={() => router.push(`/client/trainerProfile?id=${tile.trainer.id}`)}
                                     />
-                                ))}
-                            </View>
-                        );
-                    }}
-                    contentContainerStyle={{
-                        paddingHorizontal: 12,
-                        paddingTop: 10,
-                        paddingBottom: tabBarHeight + 16,
-                    }}
-                    showsVerticalScrollIndicator={false}
-                    ListHeaderComponent={(
-                        <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, marginBottom: 12, paddingHorizontal: 4 }}>
-                            {filteredTrainers.length === 0
-                                ? 'No trainers found'
-                                : `${filteredTrainers.length} trainer${filteredTrainers.length === 1 ? '' : 's'} found`}
-                        </Text>
-                    )}
-                    ListEmptyComponent={(
-                        <View style={{ alignItems: 'center', paddingTop: 60 }}>
-                            <Ionicons name="search-outline" size={48} color={colors.textDisabled} />
-                            <Text
-                                style={{
-                                    fontSize: fontSize.body,
-                                    color: colors.textSubtle,
-                                    marginTop: 12,
-                                    textAlign: 'center',
-                                    lineHeight: 22,
-                                }}
-                            >
-                                {'No trainers match your search.\nTry adjusting your filters.'}
+                                );
+                            }
+
+                            return (
+                                <View style={{ flexDirection: 'row', gap: 12 }}>
+                                    {row.map((tile) => (
+                                        <GridCard
+                                            key={tile.trainer.id}
+                                            trainer={tile.trainer}
+                                            index={tile.index}
+                                            animKey={animKey}
+                                            onPress={() => router.push(`/client/trainerProfile?id=${tile.trainer.id}`)}
+                                        />
+                                    ))}
+                                </View>
+                            );
+                        }}
+                        contentContainerStyle={{
+                            paddingHorizontal: 12,
+                            paddingTop: 10,
+                            paddingBottom: tabBarHeight + 16,
+                        }}
+                        showsVerticalScrollIndicator={false}
+                        refreshControl={(
+                            <RefreshControl
+                                refreshing={isFetching && !isLoading}
+                                onRefresh={refetch}
+                                tintColor={colors.primary}
+                            />
+                        )}
+                        ListHeaderComponent={(
+                            <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, marginBottom: 12, paddingHorizontal: 4 }}>
+                                {filteredTrainers.length === 0
+                                    ? 'No trainers found'
+                                    : `${filteredTrainers.length} trainer${filteredTrainers.length === 1 ? '' : 's'} found`}
                             </Text>
-                        </View>
-                    )}
-                />
-            </View>
+                        )}
+                        ListEmptyComponent={(
+                            <View style={{ alignItems: 'center', paddingTop: 60 }}>
+                                <Ionicons name="search-outline" size={48} color={colors.textDisabled} />
+                                <Text
+                                    style={{
+                                        fontSize: fontSize.body,
+                                        color: colors.textSubtle,
+                                        marginTop: 12,
+                                        textAlign: 'center',
+                                        lineHeight: 22,
+                                    }}
+                                >
+                                    {'No trainers match your search.\nTry adjusting your filters.'}
+                                </Text>
+                            </View>
+                        )}
+                    />
+                </View>
+            )}
         </SafeAreaView>
     );
 }

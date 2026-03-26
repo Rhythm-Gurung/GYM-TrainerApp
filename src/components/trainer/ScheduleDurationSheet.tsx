@@ -52,7 +52,7 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
     const insets = useSafeAreaInsets();
 
     const [selected, setSelected] = useState<ScheduleDurationType>('forever');
-    const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(11); // 12 months ahead
+    const [selectedMonthIndexes, setSelectedMonthIndexes] = useState<number[]>([]);
     const [weekCount, setWeekCount] = useState<number>(4);
 
     // Compute dates fresh on each render so the sheet is always up to date
@@ -78,9 +78,27 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
 
     const handleShow = useCallback(() => {
         setSelected('forever');
-        setSelectedMonthIndex(11);
+        setSelectedMonthIndexes([]);
         setWeekCount(4);
     }, []);
+
+    const toggleMonthIndex = useCallback((index: number) => {
+        setSelectedMonthIndexes((prev) => {
+            const exists = prev.includes(index);
+            if (exists) return prev.filter((i) => i !== index);
+            return [...prev, index].sort((a, b) => a - b);
+        });
+    }, []);
+
+    function computeEffectiveFrom(): string {
+        if (selected === 'months' && selectedMonthIndexes.length > 0) {
+            const minIndex = Math.min(...selectedMonthIndexes);
+            const m = futureMonths[minIndex];
+            const firstDay = `${m.year}-${String(m.month + 1).padStart(2, '0')}-01`;
+            return firstDay < todayStr ? todayStr : firstDay;
+        }
+        return todayStr;
+    }
 
     function computeEffectiveUntil(): string | null {
         switch (selected) {
@@ -88,7 +106,8 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
             case 'this_year': return endOfThisYear;
             case 'one_year': return oneYearFromToday;
             case 'months': {
-                const m = futureMonths[selectedMonthIndex];
+                const maxIndex = selectedMonthIndexes.length ? Math.max(...selectedMonthIndexes) : 0;
+                const m = futureMonths[maxIndex];
                 return lastDayOfMonth(m.year, m.month);
             }
             case 'weeks': return toYMD(addDays(today, weekCount * 7 - 1));
@@ -114,7 +133,7 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
             case 'forever': return 'No end date — repeats indefinitely';
             case 'this_year': return `Until Dec 31, ${currentYear}`;
             case 'one_year': return `Until ${formatDateShort(oneYearFromToday)}`;
-            case 'months': return 'Choose an end month below';
+            case 'months': return 'Choose one or more months below';
             case 'weeks': return 'Choose number of weeks below';
             case 'this_week': return `Until ${formatDateShort(endOfThisWeek)}`;
             default: return '';
@@ -278,11 +297,11 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
                                     >
                                         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
                                             {futureMonths.map((m, i) => {
-                                                const isPicked = selectedMonthIndex === i;
+                                                const isPicked = selectedMonthIndexes.includes(i);
                                                 return (
                                                     <TouchableOpacity
                                                         key={m.label}
-                                                        onPress={() => setSelectedMonthIndex(i)}
+                                                        onPress={() => toggleMonthIndex(i)}
                                                         activeOpacity={0.7}
                                                         style={{
                                                             paddingHorizontal: 12,
@@ -378,13 +397,21 @@ export default function ScheduleDurationSheet({ visible, onConfirm, onClose }: P
 
                 {/* Confirm button */}
                 <View style={{ paddingHorizontal: 20, paddingTop: 8 }}>
+                    {selected === 'months' && selectedMonthIndexes.length === 0 && (
+                        <Text style={{ fontSize: fontSize.tag, color: colors.textMuted, textAlign: 'center', marginBottom: 8 }}>
+                            Select at least one month to continue
+                        </Text>
+                    )}
                     <TouchableOpacity
-                        onPress={() => onConfirm(todayStr, computeEffectiveUntil(), computePlanLabel())}
+                        onPress={() => onConfirm(computeEffectiveFrom(), computeEffectiveUntil(), computePlanLabel())}
+                        disabled={selected === 'months' && selectedMonthIndexes.length === 0}
                         activeOpacity={0.8}
                         style={{
                             height: 52,
                             borderRadius: radius.card,
-                            backgroundColor: colors.trainerPrimary,
+                            backgroundColor: selected === 'months' && selectedMonthIndexes.length === 0
+                                ? colors.trainerMuted
+                                : colors.trainerPrimary,
                             alignItems: 'center',
                             justifyContent: 'center',
                             flexDirection: 'row',

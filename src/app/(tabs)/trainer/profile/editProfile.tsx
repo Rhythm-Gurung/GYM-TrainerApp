@@ -61,6 +61,7 @@ export default function EditProfile() {
             dob: user?.dob ?? '',
             contact_no: user?.contact_no ?? '',
             bio: user?.bio ?? '',
+            location: user?.location ?? '',
             years_of_experience: user?.years_of_experience?.toString() ?? '',
             pricing_per_session: user?.pricing_per_session ?? '',
         },
@@ -125,6 +126,7 @@ export default function EditProfile() {
                 full_name: [firstName, lastName].filter(Boolean).join(' '),
                 contact_no: data.contact_no.trim(),
                 bio: data.bio.trim(),
+                location: data.location.trim() || undefined,
                 expertise_categories: selectedCategories,
                 years_of_experience: Number(data.years_of_experience) || 0,
                 pricing_per_session: data.pricing_per_session.trim(),
@@ -227,6 +229,15 @@ export default function EditProfile() {
                         textAlignVertical="top"
                         style={{ minHeight: 88, paddingTop: 8 }}
                         error={errors.bio?.message}
+                    />
+
+                    <InputField
+                        control={control}
+                        name="location"
+                        label="Location"
+                        leftIcon="location-outline"
+                        placeholder="e.g. Kathmandu, Nepal"
+                        error={errors.location?.message}
                     />
 
                     {/* ── Professional Details ─────────────────────────── */}

@@ -1,9 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
-    Image,
     RefreshControl,
     ScrollView,
     Text,
@@ -17,6 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { clientService } from '@/api/services/client.service';
 import HeroGradient from '@/components/ui/HeroGradient';
 import { useAuth } from '@/contexts/auth';
 import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
@@ -166,10 +167,19 @@ export default function ClientProfile() {
                         {/* Avatar + Info */}
                         <View className="flex-row items-center">
                             <View style={{ position: 'relative' }}>
-                                {userData?.profile_image ? (
-                                    <Image
-                                        source={{ uri: userData.profile_image }}
+                                {(userData?.profile_image_url ?? userData?.profile_image) ? (
+                                    <ExpoImage
+                                        source={{
+                                            uri: userData?.profile_image_url
+                                                ? clientService.getClientProfileImageUrl()
+                                                : userData!.profile_image!,
+                                            headers: userData?.profile_image_url
+                                                ? { Authorization: `Bearer ${authState.token ?? ''}` }
+                                                : undefined,
+                                        }}
                                         style={{ width: 72, height: 72, borderRadius: radius.card }}
+                                        contentFit="cover"
+                                        cachePolicy="none"
                                     />
                                 ) : (
                                     <View
@@ -190,6 +200,8 @@ export default function ClientProfile() {
                                     </View>
                                 )}
                                 <TouchableOpacity
+                                    onPress={() => router.push('/(tabs)/client/profile/editProfile' as never)}
+                                    activeOpacity={0.8}
                                     style={{
                                         position: 'absolute',
                                         bottom: -4,

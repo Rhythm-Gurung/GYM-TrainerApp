@@ -58,15 +58,25 @@ export const EXPERTISE_CATEGORIES = [
 
 export type ExpertiseCategory = (typeof EXPERTISE_CATEGORIES)[number];
 
+export type TrainerSessionStatus =
+    | 'pending'
+    | 'accepted'
+    | 'confirmed'
+    | 'cancelled'
+    | 'refund_pending'
+    | 'refunded'
+    | 'completed';
+
 // Trainer Session (trainer-side view of a booking — shows client info)
 export interface TrainerSession {
     id: string;
     clientName: string;
     clientId: string;
+    clientAvatar?: string;
     date: string;
     startTime: string;
     endTime: string;
-    status: 'confirmed' | 'completed' | 'pending' | 'cancelled';
+    status: TrainerSessionStatus;
     totalAmount: number;
 }
 
@@ -77,6 +87,35 @@ export interface Transaction {
     amount: number; // positive for credit, negative for debit
     type: 'credit' | 'debit';
     date: string; // ISO date string YYYY-MM-DD
+}
+
+// Trainer earnings API types — GET /api/payment/trainer/earnings/
+export interface TrainerEarningsSummary {
+    total_earned_rs: number;
+    pending_transfer_rs: number;
+    on_hold_rs: number;
+    total_bookings_paid: number;
+}
+
+export type TrainerPayoutStatus = 'transferred' | 'pending' | 'on_hold' | 'failed';
+
+export interface TrainerPayout {
+    payout_id: number;
+    booking_id: number;
+    client_name: string;
+    booking_date: string; // YYYY-MM-DD
+    payout_type: string;
+    payout_type_label: string;
+    amount_rs: number;
+    status: TrainerPayoutStatus;
+    status_label: string;
+    transfer_reference: string | null;
+    transferred_at: string | null; // ISO datetime
+}
+
+export interface TrainerEarningsResponse {
+    summary: TrainerEarningsSummary;
+    payouts: TrainerPayout[];
 }
 
 // Schedule / Availability types
@@ -147,6 +186,7 @@ export interface EditProfileForm {
     dob: string;
     contact_no: string;
     bio: string;
+    location: string;
     years_of_experience: string;
     pricing_per_session: string;
 }

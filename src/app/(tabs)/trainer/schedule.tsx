@@ -5,6 +5,7 @@ import { ActivityIndicator, Alert, RefreshControl, ScrollView, Text, TouchableOp
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useTrainerBookings } from '@/api/hooks/useTrainerBookings';
 import { useTrainerSchedule } from '@/api/hooks/useTrainerSchedule';
 import AvailabilityTabBar from '@/components/trainer/AvailabilityTabBar';
 import DayScheduleCard from '@/components/trainer/DayScheduleCard';
@@ -33,6 +34,9 @@ const DUR = 300;
 export default function TrainerSchedule() {
     const tabBarHeight = useTabBarHeight();
     const insets = useSafeAreaInsets();
+
+    const { data: bookingsData, refetch: refetchBookings } = useTrainerBookings();
+    const bookings = bookingsData ?? [];
 
     const {
         activeTab,
@@ -68,24 +72,42 @@ export default function TrainerSchedule() {
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
-        await loadData();
+        await Promise.all([loadData(), refetchBookings()]);
         setIsRefreshing(false);
-    }, [loadData]);
+    }, [loadData, refetchBookings]);
 
     const handleSavePress = useCallback(() => {
-        if (scheduleDuplicateName) {
+        const hasActiveDays = schedule.some((d) => d.enabled);
+
+        const proceed = () => {
+            if (scheduleDuplicateName) {
+                Alert.alert(
+                    'Already saved',
+                    `This schedule matches "${scheduleDuplicateName}". Save again?`,
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Save Anyway', onPress: () => setDurationSheetVisible(true) },
+                    ],
+                );
+            } else {
+                setDurationSheetVisible(true);
+            }
+        };
+
+        if (!hasActiveDays) {
             Alert.alert(
-                'Already saved',
-                `This schedule matches "${scheduleDuplicateName}". Save again?`,
+                'No days selected',
+                'You have not selected any days. Are you sure you want to save an empty schedule?',
                 [
                     { text: 'Cancel', style: 'cancel' },
-                    { text: 'Save Anyway', onPress: () => setDurationSheetVisible(true) },
+                    { text: 'Save Anyway', style: 'destructive', onPress: proceed },
                 ],
             );
-        } else {
-            setDurationSheetVisible(true);
+            return;
         }
-    }, [scheduleDuplicateName]);
+
+        proceed();
+    }, [schedule, scheduleDuplicateName]);
 
     const handleDurationConfirm = useCallback((effectiveFrom: string, effectiveUntil: string | null, planLabel: string) => {
         setDurationSheetVisible(false);
@@ -94,11 +116,18 @@ export default function TrainerSchedule() {
 
     const scopeText = useMemo(() => {
         if (!scheduleScope) return null;
-        const { planLabel, effective_until } = scheduleScope;
-        if (planLabel && effective_until) return `${planLabel} · Active until ${formatScopeLabel(effective_until)}`;
-        if (planLabel) return `${planLabel} · No end date`;
-        if (effective_until) return `Active until ${formatScopeLabel(effective_until)}`;
-        return null;
+        const { planLabel, effective_from, effective_until } = scheduleScope;
+        const fromLabel = effective_from ? formatScopeLabel(effective_from) : null;
+        const untilLabel = effective_until ? formatScopeLabel(effective_until) : null;
+        let rangeText: string;
+        if (fromLabel && untilLabel) {
+            rangeText = `${fromLabel} – ${untilLabel}`;
+        } else if (untilLabel) {
+            rangeText = `Until ${untilLabel}`;
+        } else {
+            rangeText = 'No end date';
+        }
+        return planLabel ? `${planLabel} · ${rangeText}` : rangeText;
     }, [scheduleScope]);
 
     const [weekModal, setWeekModal] = useState<{
@@ -116,7 +145,12 @@ export default function TrainerSchedule() {
         if (weekModal.existing) {
             updateScheduleOverride(weekModal.existing.id, weekModal.startDate, weekModal.endDate, weekSchedule);
         } else {
-            createScheduleOverride(weekModal.startDate, weekModal.endDate, weekSchedule);
+            // Clamp start_date to today — backend rejects past start dates.
+            // This lets trainers customize the current (partially-elapsed) week.
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+            const effectiveStart = weekModal.startDate < todayStr ? todayStr : weekModal.startDate;
+            createScheduleOverride(effectiveStart, weekModal.endDate, weekSchedule);
         }
         setWeekModal(null);
     }, [weekModal, createScheduleOverride, updateScheduleOverride]);
@@ -326,6 +360,7 @@ export default function TrainerSchedule() {
                                 scheduleScope={scheduleScope}
                                 dateOverrides={dateOverrides}
                                 scheduleOverrides={scheduleOverrides}
+                                bookings={bookings}
                                 onToggleDateOverride={toggleDateOverride}
                                 onMonthChange={loadMonthOverrides}
                                 onWeekCustomize={handleWeekCustomize}

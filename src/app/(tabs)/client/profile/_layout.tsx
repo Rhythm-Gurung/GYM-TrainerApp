@@ -11,6 +11,7 @@ export default function ClientProfileLayout() {
                     animation: 'slide_from_right',
                 }}
             />
+            <Stack.Screen name="editProfile" />
         </Stack>
     );
 }

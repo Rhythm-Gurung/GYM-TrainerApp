@@ -6,11 +6,106 @@ import type {
     DaySchedule,
     GalleryItem,
     SessionMode,
+    TrainerEarningsResponse,
     TrainerRegisterInput,
     TrainerRegisterResponse,
+    TrainerSession,
+    TrainerSessionStatus,
 } from '@/types/trainerTypes';
 
+function parseMoney(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value === 'string') {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function pickString(value: unknown, fallback = ''): string {
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number') return String(value);
+  return fallback;
+}
+
+function mapApiTrainerSession(item: unknown): TrainerSession {
+  const row = (item && typeof item === 'object') ? (item as Record<string, unknown>) : {};
+
+  const clientObj = (row.client && typeof row.client === 'object')
+    ? (row.client as Record<string, unknown>)
+    : null;
+
+  const clientName =
+    pickString(clientObj?.full_name)
+    || pickString(clientObj?.name)
+    || pickString(row.client_name)
+    || pickString(row.clientName)
+    || 'Client';
+
+  const clientId =
+    pickString(clientObj?.id)
+    || pickString(row.client_id)
+    || pickString(row.clientId);
+
+  const clientAvatar =
+    pickString(clientObj?.profile_image_url)
+    || pickString(clientObj?.avatar_url)
+    || pickString(clientObj?.image_url)
+    || pickString(row.client_avatar_url)
+    || pickString(row.clientAvatar)
+    || '';
+
+  const statusRaw = pickString(row.status, 'pending');
+  const VALID_STATUSES: TrainerSessionStatus[] = [
+    'pending', 'accepted', 'confirmed', 'cancelled', 'refund_pending', 'refunded', 'completed',
+  ];
+  const status: TrainerSessionStatus = VALID_STATUSES.includes(statusRaw as TrainerSessionStatus)
+    ? (statusRaw as TrainerSessionStatus)
+    : 'pending';
+
+  return {
+    id: pickString(row.id),
+    clientName,
+    clientId,
+    clientAvatar: clientAvatar || undefined,
+    date: pickString(row.date),
+    startTime: pickString(row.start_time ?? row.startTime),
+    endTime: pickString(row.end_time ?? row.endTime),
+    status,
+    totalAmount: parseMoney(row.total_amount ?? row.totalAmount),
+  };
+}
+
 export const trainerService = {
+  /**
+   * Accept a pending booking.
+   * POST /api/trainer/bookings/{id}/confirm/
+   * Booking status moves to "accepted" — client must now pay.
+   */
+  confirmBooking: async (id: string): Promise<void> => {
+    await apiClient.post(`${API_CONFIG.ENDPOINTS.TRAINER.BOOKINGS}${id}/confirm/`);
+  },
+
+  /**
+   * Reject / cancel a booking as the trainer.
+   * POST /api/trainer/bookings/{id}/cancel/
+   */
+  cancelBookingById: async (id: string, reason: string): Promise<void> => {
+    await apiClient.post(`${API_CONFIG.ENDPOINTS.TRAINER.BOOKINGS}${id}/cancel/`, { reason });
+  },
+
+  /**
+   * Fetch trainer-visible bookings.
+   * Depending on backend, this may be the same /api/bookings/ list used by clients,
+   * but filtered server-side for the authenticated trainer.
+   */
+  getBookings: async (): Promise<TrainerSession[]> => {
+    const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.TRAINER.BOOKINGS);
+    const result = data?.data ?? data?.results ?? data;
+    if (!Array.isArray(result)) return [];
+    return result.map(mapApiTrainerSession);
+  },
+
   /**
    * Register a new trainer with extended details
    * @param input - Trainer registration data including credentials and professional details
@@ -169,6 +264,7 @@ export const trainerService = {
     full_name: string;
     contact_no: string;
     bio: string;
+    location?: string;
     expertise_categories: string[];
     years_of_experience: number;
     pricing_per_session: string;
@@ -592,5 +688,45 @@ export const trainerService = {
     );
     console.warn('[svc:schedule] DELETE scheduleOverride ← status:', status);
     return status;
+  },
+
+  // ─── Earnings ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Fetch the trainer's earnings summary and payout history.
+   * GET /api/payment/trainer/earnings/
+   */
+  getEarnings: async (): Promise<TrainerEarningsResponse> => {
+    const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.PAYMENT.TRAINER_EARNINGS);
+    const raw = (data && typeof data === 'object') ? (data as Record<string, unknown>) : {};
+    const summaryRaw = (raw.summary && typeof raw.summary === 'object')
+      ? (raw.summary as Record<string, unknown>)
+      : {};
+    const payoutsRaw = Array.isArray(raw.payouts) ? raw.payouts : [];
+
+    return {
+      summary: {
+        total_earned_rs: parseMoney(summaryRaw.total_earned_rs),
+        pending_transfer_rs: parseMoney(summaryRaw.pending_transfer_rs),
+        on_hold_rs: parseMoney(summaryRaw.on_hold_rs),
+        total_bookings_paid: Number(summaryRaw.total_bookings_paid ?? 0),
+      },
+      payouts: payoutsRaw.map((item: unknown) => {
+        const row = (item && typeof item === 'object') ? (item as Record<string, unknown>) : {};
+        return {
+          payout_id: Number(row.payout_id ?? 0),
+          booking_id: Number(row.booking_id ?? 0),
+          client_name: pickString(row.client_name),
+          booking_date: pickString(row.booking_date),
+          payout_type: pickString(row.payout_type),
+          payout_type_label: pickString(row.payout_type_label),
+          amount_rs: parseMoney(row.amount_rs),
+          status: pickString(row.status, 'pending') as TrainerEarningsResponse['payouts'][number]['status'],
+          status_label: pickString(row.status_label),
+          transfer_reference: row.transfer_reference ? pickString(row.transfer_reference) : null,
+          transferred_at: row.transferred_at ? pickString(row.transferred_at) : null,
+        };
+      }),
+    };
   },
 };

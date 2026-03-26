@@ -49,16 +49,21 @@ interface TimePickerModalProps {
     visible: boolean;
     title: string;
     selected: string;
-    minTime?: string; // end-time picker: only shows times strictly after this
+    /** Strict lower bound: only shows times > minTime (used for end-time picker) */
+    minTime?: string;
+    /** Inclusive lower bound: only shows times >= minFloor (used for start-time picker on today) */
+    minFloor?: string;
     onSelect: (time: string) => void;
     onClose: () => void;
 }
 
-function TimePickerModal({ visible, title, selected, minTime, onSelect, onClose }: TimePickerModalProps) {
+function TimePickerModal({ visible, title, selected, minTime, minFloor, onSelect, onClose }: TimePickerModalProps) {
     const flatListRef = useRef<FlatList>(null);
-    const options = minTime
-        ? TIME_OPTIONS.filter((t) => toMinutes(t) > toMinutes(minTime))
-        : TIME_OPTIONS;
+    const options = TIME_OPTIONS.filter((t) => {
+        if (minFloor && toMinutes(t) < toMinutes(minFloor)) return false;
+        if (minTime && toMinutes(t) <= toMinutes(minTime)) return false;
+        return true;
+    });
     const selectedIndex = Math.max(0, options.indexOf(selected));
 
     return (
@@ -210,6 +215,10 @@ interface DayScheduleCardProps {
     onRemoveSlot: (slotId: string) => void;
     onUpdateSlot: (slotId: string, field: 'startTime' | 'endTime', value: string) => void;
     onSessionModeChange?: (mode: SessionMode) => void;
+    /** Earliest selectable start time — past options are hidden (used for today's card). */
+    minStartTime?: string;
+    /** Entire card is locked — day is already in the past. */
+    isPastDay?: boolean;
 }
 
 export default function DayScheduleCard({
@@ -219,6 +228,8 @@ export default function DayScheduleCard({
     onRemoveSlot,
     onUpdateSlot,
     onSessionModeChange,
+    minStartTime,
+    isPastDay = false,
 }: DayScheduleCardProps) {
     const [picker, setPicker] = useState<{
         slotId: string;
@@ -240,6 +251,7 @@ export default function DayScheduleCard({
                 borderWidth: 1,
                 borderColor: colors.surfaceBorder,
                 marginBottom: 10,
+                opacity: isPastDay ? 0.45 : 1,
                 ...shadow.cardSubtle,
             }}
         >
@@ -249,6 +261,7 @@ export default function DayScheduleCard({
                     <Switch
                         value={day.enabled}
                         onValueChange={onToggle}
+                        disabled={isPastDay}
                         trackColor={{ false: colors.neutral, true: colors.trainerPrimary }}
                         thumbColor={colors.white}
                         ios_backgroundColor={colors.neutral}
@@ -410,6 +423,7 @@ export default function DayScheduleCard({
                     title={picker.field === 'startTime' ? 'Select Start Time' : 'Select End Time'}
                     selected={picker.field === 'startTime' ? activeSlot.startTime : activeSlot.endTime}
                     minTime={picker.field === 'endTime' ? activeSlot.startTime : undefined}
+                    minFloor={picker.field === 'startTime' ? minStartTime : undefined}
                     onSelect={(time) => onUpdateSlot(picker.slotId, picker.field, time)}
                     onClose={() => setPicker(null)}
                 />

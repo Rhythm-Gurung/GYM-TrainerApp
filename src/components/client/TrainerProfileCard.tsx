@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, View } from 'react-native';
 
+import { useAuth } from '@/contexts/auth';
+import { resolveImageUrl } from '@/lib';
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
 import type { Trainer } from '@/types/clientTypes';
 
@@ -17,6 +20,7 @@ function getInitials(name: string): string {
 }
 
 export default function TrainerProfileCard({ trainer }: TrainerProfileCardProps) {
+    const { authState } = useAuth();
     const initials = getInitials(trainer.name);
 
     return (
@@ -35,24 +39,44 @@ export default function TrainerProfileCard({ trainer }: TrainerProfileCardProps)
             {/* Avatar + info row */}
             <View style={{ flexDirection: 'row', gap: 16 }}>
                 {/* Avatar */}
-                <View
-                    style={{
-                        width: 76,
-                        height: 76,
-                        borderRadius: radius.card,
-                        backgroundColor: colors.primaryLight,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        borderWidth: 3,
-                        borderColor: colors.white,
-                        flexShrink: 0,
-                        ...shadow.cardStrong,
-                    }}
-                >
-                    <Text style={{ fontSize: fontSize.header, fontWeight: '800', color: colors.primary }}>
-                        {initials}
-                    </Text>
-                </View>
+                {trainer.avatar ? (
+                    <ExpoImage
+                        source={{
+                            uri: resolveImageUrl(trainer.avatar),
+                            headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                        }}
+                        style={{
+                            width: 110,
+                            height: 110,
+                            borderRadius: radius.card,
+                            borderWidth: 3,
+                            borderColor: colors.white,
+                            flexShrink: 0,
+                            ...shadow.cardStrong,
+                        }}
+                        contentFit="cover"
+                        cachePolicy="none"
+                    />
+                ) : (
+                    <View
+                        style={{
+                            width: 96,
+                            height: 96,
+                            borderRadius: radius.card,
+                            backgroundColor: colors.primaryLight,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 3,
+                            borderColor: colors.white,
+                            flexShrink: 0,
+                            ...shadow.cardStrong,
+                        }}
+                    >
+                        <Text style={{ fontSize: fontSize.header, fontWeight: '800', color: colors.primary }}>
+                            {initials}
+                        </Text>
+                    </View>
+                )}
 
                 {/* Name, rating, location */}
                 <View style={{ flex: 1, justifyContent: 'center' }}>

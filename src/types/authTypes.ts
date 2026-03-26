@@ -29,12 +29,15 @@ export interface User {
   last_name?: string;
   full_name?: string;
   profile_image?: string;
+  /** Full URL to the profile image binary endpoint (returned by client profile API). */
+  profile_image_url?: string | null;
   dob?: string;
   is_email_verified?: boolean;
   is_trainer: boolean;
   role?: 'client' | 'trainer';
   contact_no?: string;
   bio?: string;
+  location?: string;
   expertise_categories?: string;
   years_of_experience?: number;
   pricing_per_session?: string;
@@ -139,4 +142,13 @@ export interface UpdateProfileInput {
   contactNo?: string;
   businessType?: string;
   profileImage?: string;
+}
+
+/** Fields the client can edit via PATCH /api/system/client/profile/ */
+export interface ClientProfileEditForm {
+  first_name: string;
+  last_name: string;
+  dob: string;
+  contact_no: string;
+  is_receiving_promotional_email: boolean;
 }

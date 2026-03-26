@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image as ExpoImage } from 'expo-image';
+import { Text, TouchableOpacity, View } from 'react-native';
 
+import { useAuth } from '@/contexts/auth';
+import { resolveImageUrl } from '@/lib';
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
 import type { Trainer } from '@/types/clientTypes';
 
@@ -18,6 +21,7 @@ function getInitials(name: string): string {
 }
 
 export default function TrainerCard({ trainer, onPress }: TrainerCardProps) {
+    const { authState } = useAuth();
     const initials = getInitials(trainer.name);
     const visibleTags = trainer.expertise.slice(0, 2);
     const extraTagCount = trainer.expertise.length - visibleTags.length;
@@ -33,9 +37,14 @@ export default function TrainerCard({ trainer, onPress }: TrainerCardProps) {
                 {/* Avatar */}
                 <View style={{ position: 'relative', marginRight: 12 }}>
                     {trainer.avatar ? (
-                        <Image
-                            source={{ uri: trainer.avatar }}
+                        <ExpoImage
+                            source={{
+                                uri: resolveImageUrl(trainer.avatar),
+                                headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                            }}
                             style={{ width: 56, height: 56, borderRadius: radius.card }}
+                            contentFit="cover"
+                            cachePolicy="none"
                         />
                     ) : (
                         <View

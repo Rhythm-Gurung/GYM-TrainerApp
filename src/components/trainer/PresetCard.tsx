@@ -21,6 +21,14 @@ export default function PresetCard({ preset, isApplying, isActive, activeScopeTe
     const activeDayIndices = preset.schedule.filter((d) => d.enabled).map((d) => d.dayOfWeek);
 
     const confirmDelete = () => {
+        if (isActive) {
+            Alert.alert(
+                'Cannot delete active schedule',
+                `"${preset.name}" is currently active. Restore a different schedule first, then delete this one.`,
+                [{ text: 'OK' }],
+            );
+            return;
+        }
         Alert.alert(
             'Delete record?',
             `"${preset.name}" will be removed.`,

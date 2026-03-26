@@ -1,15 +1,7 @@
-import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, Text, View } from 'react-native';
 import {
-    ActivityIndicator,
-    ScrollView,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
-} from 'react-native';
-import Animated, {
     useAnimatedStyle,
     useSharedValue,
     withDelay,
@@ -17,96 +9,173 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useClientBooking } from '@/api/hooks/useClientBooking';
-import type { SelectionMode } from '@/constants/clientBooking.constants';
+import { useAvailableDates, useAvailableSlots, useBookings, useTrainerDetail } from '@/api/hooks/useBookSession';
+import { clientService } from '@/api/services/client.service';
+import {
+    BookSessionHeader,
+    BookingSummarySection,
+    FixedCta,
+    MonthCalendarSection,
+    NotesSection,
+    TimeSlotsSection,
+    TrainerCard,
+    WeeklyScheduleSection,
+} from '@/components/client/bookSession';
 import {
     BOOKING_ANIM,
-    BOOKING_DATE_RANGE_DAYS,
-    BOOKING_NOTES_MAX_LENGTH,
-    BOOKING_NOTES_PLACEHOLDER,
-    BOOKING_SLOT_ROWS,
     MONTH_LABELS_SHORT,
-    SELECTION_MODE_OPTIONS,
     WEEKDAY_LABELS_LONG,
-    WEEKDAY_LABELS_SHORT,
 } from '@/constants/clientBooking.constants';
-import { colors, fontSize, radius, shadow } from '@/constants/theme';
-import { mockTrainers } from '@/data/mockData';
-import { showSuccessToast } from '@/lib/toast';
-import type { BookingRequest } from '@/types/clientTypes';
+import { colors, fontSize } from '@/constants/theme';
+import { showErrorToast, showSuccessToast } from '@/lib/toast';
+import type {
+    ApiAvailableSlot,
+    ApiAvailableSlotsResponse,
+    ApiScheduleDay,
+    BookingSessionMode,
+    SessionMode,
+} from '@/types/clientTypes';
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const PER_DATE_LIMIT = 6;
 
-/** '09:00' → '10:00' */
-function getEndTime(startTime: string): string {
-    const [hour] = startTime.split(':');
-    return `${String(Number(hour) + 1).padStart(2, '0')}:00`;
+// ─── Pure helpers ─────────────────────────────────────────────────────────────
+
+function chunk<T>(arr: T[], size: number): T[][] {
+    const out: T[][] = [];
+    for (let i = 0; i < arr.length; i += size) {
+        out.push(arr.slice(i, i + size));
+    }
+    return out;
 }
 
-/** 'YYYY-MM-DD' → 'Wednesday, 25 Feb' */
+function toMonFirst(jsDay: number): number {
+    return (jsDay + 6) % 7;
+}
+
 function formatDateSummary(dateStr: string): string {
     const d = new Date(dateStr);
     return `${WEEKDAY_LABELS_LONG[d.getDay()]}, ${d.getDate()} ${MONTH_LABELS_SHORT[d.getMonth()]}`;
 }
 
-/** 'YYYY-MM-DD' → '25 Feb' */
-function formatDateShort(dateStr: string): string {
-    const d = new Date(dateStr);
-    return `${d.getDate()} ${MONTH_LABELS_SHORT[d.getMonth()]}`;
+/** Returns true if the trainer's weekly schedule has `startTime` for the given date's day-of-week. */
+function scheduleHasSlot(date: string, startTime: string, schedule: ApiScheduleDay[]): boolean {
+    const dow = new Date(date).getDay();
+    const day = schedule.find((d) => d.day_of_week === dow && d.enabled);
+    return day?.slots.some((s) => s.start_time === startTime) ?? false;
 }
 
-/** Generate the next N bookable dates starting from tomorrow. */
-function generateDates(count: number): string[] {
-    return Array.from({ length: count }, (_, i) => {
-        const d = new Date();
-        d.setDate(d.getDate() + i + 1);
-        return d.toISOString().split('T')[0];
-    });
+interface CalCell {
+    key: string;
+    day: number | null;
 }
 
-/** Generate N consecutive dates starting from startDate (inclusive). */
-function generateDateRange(startDate: string, count: number): string[] {
-    const start = new Date(startDate);
-    return Array.from({ length: count }, (_, i) => {
-        const d = new Date(start);
-        d.setDate(d.getDate() + i);
-        return d.toISOString().split('T')[0];
-    });
+function toDateStr(year: number, month: number, day: number): string {
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
-/** First–Last range label for the booking summary. */
-function formatPeriod(dates: string[]): string {
-    if (dates.length === 1) return formatDateSummary(dates[0]);
-    return `${formatDateShort(dates[0])} – ${formatDateShort(dates[dates.length - 1])}`;
+function buildCalendarCells(year: number, month: number): CalCell[] {
+    const offset = toMonFirst(new Date(year, month - 1, 1).getDay());
+    const daysInMonth = new Date(year, month, 0).getDate();
+    const cells: CalCell[] = [
+        ...Array.from({ length: offset }, (_, i) => ({ key: `blank-pre-${i}`, day: null })),
+        ...Array.from({ length: daysInMonth }, (_, i) => ({
+            key: toDateStr(year, month, i + 1),
+            day: i + 1,
+        })),
+    ];
+    let trail = 0;
+    while (cells.length % 7 !== 0) {
+        cells.push({ key: `blank-post-${trail}`, day: null });
+        trail += 1;
+    }
+    return cells;
 }
 
-// Pre-computed once at module load; refreshes on next app launch.
-const DATES = generateDates(BOOKING_DATE_RANGE_DAYS);
-const DATES_SET = new Set(DATES);
+function resolveEffectiveMode(
+    trainerMode: SessionMode | undefined,
+    chosenMode: BookingSessionMode,
+): BookingSessionMode {
+    if (trainerMode === 'online') return 'online';
+    if (trainerMode === 'offline') return 'offline';
+    return chosenMode;
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function BookSession() {
     const router = useRouter();
-    // Manually consume insets — avoids nesting SafeAreaView inside View
-    // which causes double-inset / zero-inset issues on Android.
     const insets = useSafeAreaInsets();
     const { id } = useLocalSearchParams<{ id: string }>();
 
-    const trainer = mockTrainers.find((t) => t.id === id);
+    const { data: trainer, isLoading: isTrainerLoading, refetch: refetchTrainer } = useTrainerDetail(id);
+    const { data: clientBookings } = useBookings();
 
-    const [selectionMode, setSelectionMode] = useState<SelectionMode>('single');
-    const [selectedDates, setSelectedDates] = useState<string[]>([]);
-    const [selectedTime, setSelectedTime] = useState<string | null>(null);
+    const today = useMemo(() => new Date(), []);
+    const [calYear, setCalYear] = useState(today.getFullYear());
+    const [calMonth, setCalMonth] = useState(today.getMonth() + 1);
+
+    const { data: availableDates, refetch: refetchAvailableDates } = useAvailableDates(id, calYear, calMonth);
+
+    const [selectedDates, setSelectedDates] = useState<Set<string>>(() => new Set());
+    const [activeSlotDate, setActiveSlotDate] = useState<string | null>(null);
+
+    const [chosenMode, setChosenMode] = useState<BookingSessionMode>('online');
+    const [selectedSlot, setSelectedSlot] = useState<ApiAvailableSlot | null>(null);
+    const [slotPerDate, setSlotPerDate] = useState<Map<string, ApiAvailableSlot>>(() => new Map());
     const [notes, setNotes] = useState('');
+    const [isBooking, setIsBooking] = useState(false);
 
-    const { mutateAsync, isLoading } = useClientBooking();
+    const isPerDateMode = selectedDates.size > 0 && selectedDates.size <= PER_DATE_LIMIT;
 
-    // ── Entrance animations ────────────────────────────────────────────────────
+    // Keep refs for race-safe async auto-fill.
+    const selectedDatesRef = useRef(selectedDates);
+    useEffect(() => {
+        selectedDatesRef.current = selectedDates;
+    }, [selectedDates]);
+
+    const availableSlotsCacheRef = useRef<Map<string, ApiAvailableSlotsResponse>>(new Map());
+    const autoFillSeqRef = useRef(0);
+
+    const getAvailableSlotsForDate = useCallback(async (dateStr: string) => {
+        if (!id) return null;
+        const cached = availableSlotsCacheRef.current.get(dateStr);
+        if (cached) return cached;
+        try {
+            const resp = await clientService.getAvailableSlots(id, dateStr);
+            availableSlotsCacheRef.current.set(dateStr, resp);
+            return resp;
+        } catch {
+            return null;
+        }
+    }, [id]);
+
+    const { data: slotsData, isLoading: isSlotsLoading, refetch: refetchSlots } = useAvailableSlots(id, activeSlotDate);
+    const trainerMode = slotsData?.session_mode;
+    const effectiveMode = resolveEffectiveMode(trainerMode, chosenMode);
+
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        availableSlotsCacheRef.current.clear();
+
+        try {
+            await Promise.all([
+                refetchTrainer(),
+                refetchAvailableDates(),
+                activeSlotDate ? refetchSlots() : Promise.resolve(),
+            ]);
+        } catch {
+            showErrorToast('Failed to refresh availability. Please try again.');
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [activeSlotDate, refetchAvailableDates, refetchSlots, refetchTrainer]);
+
+    // ── Entrance animations ───────────────────────────────────────────────────
     const cardY = useSharedValue<number>(BOOKING_ANIM.SLIDE);
     const dateY = useSharedValue<number>(BOOKING_ANIM.SLIDE);
     const timeY = useSharedValue<number>(BOOKING_ANIM.SLIDE);
-
     const animRef = useRef({ cardY, dateY, timeY });
 
     useFocusEffect(
@@ -125,8 +194,6 @@ export default function BookSession() {
         }, []),
     );
 
-    // overflow: 'visible' prevents the animated transform from being clipped
-    // by the parent — matches the pattern used in trainerProfile.tsx.
     const cardStyle = useAnimatedStyle(() => ({
         overflow: 'visible',
         transform: [{ translateY: cardY.value }],
@@ -140,545 +207,376 @@ export default function BookSession() {
         transform: [{ translateY: timeY.value }],
     }));
 
-    // ── Mode change — always clears selection ──────────────────────────────────
-    function handleSelectionModeChange(mode: SelectionMode) {
-        setSelectionMode(mode);
-        setSelectedDates([]);
-    }
+    // ── Derived calendar values ───────────────────────────────────────────────
+    const todayStr = useMemo(() => today.toISOString().split('T')[0], [today]);
+    const availableSet = useMemo(() => new Set(availableDates ?? []), [availableDates]);
+    const availableCountThisMonth = useMemo(
+        () => (availableDates ?? []).filter((d) => d >= todayStr).length,
+        [availableDates, todayStr],
+    );
+    const calCells = useMemo(() => buildCalendarCells(calYear, calMonth), [calYear, calMonth]);
+    const isCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth() + 1;
 
-    // ── Date press — mode-aware ────────────────────────────────────────────────
-    function handleDatePress(date: string) {
-        switch (selectionMode) {
-            case 'single':
-                setSelectedDates((prev) => (prev[0] === date ? [] : [date]));
-                break;
-
-            case 'multi':
-                setSelectedDates((prev) => {
-                    if (prev.includes(date)) return prev.filter((d) => d !== date);
-                    return [...prev, date].sort();
-                });
-                break;
-
-            case 'week':
-            case 'month': {
-                const count = selectionMode === 'week' ? 7 : 30;
-                const range = generateDateRange(date, count).filter((d) => DATES_SET.has(d));
-                setSelectedDates((prev) => {
-                    if (prev.length > 0 && prev[0] === range[0]) return [];
-                    return range;
-                });
-                break;
+    const bookedSet = useMemo(() => {
+        const set = new Set<string>();
+        if (!id || !clientBookings) return set;
+        clientBookings.forEach((b) => {
+            if (b.trainerId === id && b.status !== 'cancelled') {
+                set.add(b.date);
             }
+        });
+        return set;
+    }, [clientBookings, id]);
 
-            default:
-                break;
+    // ── Date selection (month calendar) ──────────────────────────────────────
+    const handleDatePress = useCallback((day: number) => {
+        const dateStr = toDateStr(calYear, calMonth, day);
+        if (dateStr < todayStr) return;
+        if (!availableSet.has(dateStr)) return;
+
+        setSelectedDates((prev) => {
+            const next = new Set(prev);
+            if (next.has(dateStr)) {
+                next.delete(dateStr);
+            } else {
+                next.add(dateStr);
+            }
+            return next;
+        });
+
+        setActiveSlotDate((prevActive) => {
+            if (prevActive === null) return dateStr;
+            if (prevActive === dateStr) {
+                // If user deselected the active date, switch to another selected date.
+                const remaining = Array.from(selectedDatesRef.current).filter((d) => d !== dateStr);
+                remaining.sort();
+                return remaining[0] ?? null;
+            }
+            return dateStr;
+        });
+    }, [availableSet, calMonth, calYear, todayStr]);
+
+    const handleChipPress = useCallback((dateStr: string) => {
+        setActiveSlotDate(dateStr);
+    }, []);
+
+    // Keep slot selections consistent with selected dates and mode.
+    useEffect(() => {
+        if (selectedDates.size === 0) {
+            setActiveSlotDate(null);
+            setSelectedSlot(null);
+            setSlotPerDate(new Map());
+            return;
         }
-    }
 
-    // ── Submit ─────────────────────────────────────────────────────────────────
-    const handleBook = useCallback(async () => {
-        if (!trainer || selectedDates.length === 0 || !selectedTime) return;
+        setSlotPerDate((prev) =>
+            new Map(
+                Array.from(prev.entries()).filter(([date]) => selectedDates.has(date)),
+            )
+        );
 
-        const count = selectedDates.length;
-        const request: BookingRequest = {
-            trainerId: trainer.id,
-            trainerName: trainer.name,
-            dates: selectedDates,
-            sessionCount: count,
-            startTime: selectedTime,
-            endTime: getEndTime(selectedTime),
-            totalAmount: trainer.hourlyRate * count,
-            notes: notes.trim() || undefined,
+        if (selectedDates.size > PER_DATE_LIMIT) {
+            // Global-time mode. Per-date selections no longer apply.
+            setSlotPerDate(new Map());
+        } else {
+            // Per-date mode. Global selection should not apply.
+            setSelectedSlot(null);
+        }
+
+        if (activeSlotDate && !selectedDates.has(activeSlotDate)) {
+            const first = Array.from(selectedDates).sort()[0] ?? null;
+            setActiveSlotDate(first);
+        }
+    }, [activeSlotDate, selectedDates]);
+
+    const handleSlotPress = useCallback((slot: ApiAvailableSlot) => {
+        if (!activeSlotDate) return;
+        if (selectedDates.size === 0) return;
+
+        if (!isPerDateMode) {
+            setSelectedSlot(slot);
+            return;
+        }
+
+        setSlotPerDate((prev) => {
+            const next = new Map(prev);
+            next.set(activeSlotDate, slot);
+            return next;
+        });
+
+        if (!trainer) return;
+        if (selectedDates.size <= 1) return;
+
+        const seq = autoFillSeqRef.current + 1;
+        autoFillSeqRef.current = seq;
+
+        const startTime = slot.start_time;
+        const schedule = trainer.availability;
+        const baseDate = activeSlotDate;
+
+        const runAutoFill = async () => {
+            const datesNow = Array.from(selectedDatesRef.current);
+            const otherDates = datesNow.filter((d) => d !== baseDate);
+
+            if (autoFillSeqRef.current !== seq) return;
+
+            const candidates = otherDates.filter((date) =>
+                scheduleHasSlot(date, startTime, schedule),
+            );
+
+            const results = await Promise.all(
+                candidates.map(async (date) => {
+                    const resp = await getAvailableSlotsForDate(date);
+                    if (!resp || !resp.is_available) return null;
+                    const match = resp.slots.find(
+                        (s) => s.start_time === startTime && !s.is_booked,
+                    );
+                    return match ? ([date, match] as const) : null;
+                }),
+            );
+
+            const updates = new Map(
+                results.filter(
+                    (x): x is readonly [string, ApiAvailableSlot] => x !== null,
+                ),
+            );
+
+            if (autoFillSeqRef.current !== seq) return;
+
+            setSlotPerDate((prev) => {
+                const next = new Map(prev);
+                Array.from(updates.entries()).forEach(([date, s]) => {
+                    if (!selectedDatesRef.current.has(date)) return;
+                    if (next.has(date)) return;
+                    next.set(date, s);
+                });
+                return next;
+            });
         };
 
+        runAutoFill().catch(() => {
+            // best-effort; ignore auto-fill failures
+        });
+    }, [activeSlotDate, getAvailableSlotsForDate, isPerDateMode, selectedDates.size, trainer]);
+
+    const isReady = useMemo(() => {
+        if (!trainer) return false;
+        if (selectedDates.size === 0) return false;
+
+        if (isPerDateMode) {
+            return Array.from(selectedDates).every((date) => !!slotPerDate.get(date));
+        }
+
+        return selectedSlot !== null;
+    }, [isPerDateMode, selectedDates, selectedSlot, slotPerDate, trainer]);
+
+    const ctaLabel = useMemo(() => {
+        const count = selectedDates.size;
+        if (isBooking) return 'Confirming...';
+        if (count > 1) return `Confirm ${count} Sessions`;
+        return 'Confirm Booking';
+    }, [isBooking, selectedDates.size]);
+
+    const handleBook = useCallback(async () => {
+        if (!trainer) return;
+        if (!isReady) return;
+        if (!id) return;
+
+        const dates = Array.from(selectedDates).sort();
+        const notesValue = notes.trim() || undefined;
+
+        /** Computes session cost: hourlyRate × duration in hours */
+        const calcAmount = (startTime: string, endTime: string): number => {
+            const [sh, sm] = startTime.split(':').map(Number);
+            const [eh, em] = endTime.split(':').map(Number);
+            const durationHours = (eh * 60 + em - sh * 60 - sm) / 60;
+            return Math.round(trainer.hourlyRate * durationHours);
+        };
+
+        setIsBooking(true);
         try {
-            await mutateAsync(request);
+            if (isPerDateMode) {
+                const bookings = dates.map(async (date) => {
+                    const s = slotPerDate.get(date);
+                    if (!s) throw new Error('Missing time for one or more selected dates.');
+
+                    const resp = await getAvailableSlotsForDate(date);
+                    const modeForDate = resolveEffectiveMode(resp?.session_mode, chosenMode);
+
+                    await clientService.bookSession(id, {
+                        date,
+                        start_time: s.start_time,
+                        end_time: s.end_time,
+                        session_mode: modeForDate,
+                        notes: notesValue,
+                        total_amount: calcAmount(s.start_time, s.end_time),
+                    });
+                });
+                await Promise.all(bookings);
+            } else {
+                await Promise.all(
+                    dates.map((date) =>
+                        clientService.bookSession(id, {
+                            date,
+                            start_time: selectedSlot!.start_time,
+                            end_time: selectedSlot!.end_time,
+                            session_mode: effectiveMode,
+                            notes: notesValue,
+                            total_amount: calcAmount(selectedSlot!.start_time, selectedSlot!.end_time),
+                        }),
+                    ),
+                );
+            }
+
+            const count = dates.length;
             const label = count > 1 ? `${count} sessions` : 'a session';
             showSuccessToast(
-                `Booked ${label} with ${trainer.name} at ${selectedTime}`,
-                'Booking request sent!',
+                `Booked ${label} with ${trainer.name}`,
+                'Booking confirmed!',
             );
             router.navigate('/(tabs)/client/bookings');
-        } catch {
-            // Error toast already shown by useApiMutation
+        } catch (e) {
+            showErrorToast(e instanceof Error ? e.message : 'Booking failed. Please try again.');
+        } finally {
+            setIsBooking(false);
         }
-    }, [trainer, selectedDates, selectedTime, notes, mutateAsync, router]);
+    }, [chosenMode, effectiveMode, getAvailableSlotsForDate, id, isPerDateMode, isReady, notes, router, selectedDates, selectedSlot, slotPerDate, trainer]);
 
-    // ── Not found ──────────────────────────────────────────────────────────────
-    if (!trainer) {
+    if (isTrainerLoading || !trainer) {
         return (
             <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: fontSize.body, color: colors.textMuted }}>
-                    Trainer not found
+                <ActivityIndicator color={colors.primary} />
+                <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, marginTop: 10 }}>
+                    Loading trainer...
                 </Text>
             </View>
         );
     }
 
-    const isReady = selectedDates.length > 0 && !!selectedTime;
-    const sessionCount = selectedDates.length;
-    const totalAmount = trainer.hourlyRate * (sessionCount || 1);
-    const initials = trainer.name.split(' ').map((n) => n[0]).join('');
+    const initials = trainer.name
+        .split(' ')
+        .map((n) => n[0])
+        .join('');
 
-    function getButtonLabel(): string {
-        if (isLoading) return 'Confirming...';
-        if (sessionCount > 1) return `Confirm ${sessionCount} Sessions`;
-        return 'Confirm Booking';
-    }
-
-    // Height of the fixed CTA bar (button + padding above + bottom inset)
-    const CTA_HEIGHT = 16 + 52 + 12 + insets.bottom;
+    const onPrevMonth = () => {
+        if (isCurrentMonth) return;
+        if (calMonth === 1) {
+            setCalYear((y) => y - 1);
+            setCalMonth(12);
+        } else {
+            setCalMonth((m) => m - 1);
+        }
+    };
+    const onNextMonth = () => {
+        if (calMonth === 12) {
+            setCalYear((y) => y + 1);
+            setCalMonth(1);
+        } else {
+            setCalMonth((m) => m + 1);
+        }
+    };
 
     return (
         <View style={{ flex: 1, backgroundColor: colors.background }}>
+            <BookSessionHeader
+                topInset={insets.top}
+                selectedCount={selectedDates.size}
+                onBack={() => router.back()}
+            />
 
-            {/* ── Header (manual insets — no nested SafeAreaView) ────────────── */}
-            <View
-                style={{
-                    paddingTop: insets.top + 14,
-                    paddingBottom: 14,
-                    paddingHorizontal: 20,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 12,
-                    backgroundColor: colors.background,
-                    borderBottomWidth: 1,
-                    borderBottomColor: colors.surfaceBorder,
-                }}
-            >
-                <TouchableOpacity
-                    onPress={() => router.back()}
-                    activeOpacity={0.7}
-                    style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: radius.sm,
-                        backgroundColor: colors.surface,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                    }}
-                >
-                    <Ionicons name="arrow-back" size={20} color={colors.textPrimary} />
-                </TouchableOpacity>
-
-                <Text style={{ fontSize: fontSize.header, fontWeight: '800', color: colors.textPrimary }}>
-                    Book Session
-                </Text>
-            </View>
-
-            {/* ── Scrollable body ─────────────────────────────────────────────── */}
             <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={{
                     padding: 20,
                     gap: 28,
-                    paddingBottom: CTA_HEIGHT + 16,
+                    paddingBottom: 140 + insets.bottom,
                 }}
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
-            >
-                {/* ── Trainer summary card ─────────────────────────────────── */}
-                <Animated.View style={cardStyle}>
-                    <View
-                        style={{
-                            backgroundColor: colors.white,
-                            borderRadius: radius.card,
-                            padding: 16,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 14,
-                            borderWidth: 1,
-                            borderColor: colors.surfaceBorder,
-                            ...shadow.card,
-                        }}
-                    >
-                        {/* Avatar initials */}
-                        <View
-                            style={{
-                                width: 52,
-                                height: 52,
-                                borderRadius: radius.card,
-                                backgroundColor: colors.primarySurface,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                borderWidth: 1.5,
-                                borderColor: colors.primaryBorderSm,
-                            }}
-                        >
-                            <Text style={{ fontSize: fontSize.card, fontWeight: '800', color: colors.primary }}>
-                                {initials}
-                            </Text>
-                        </View>
-
-                        {/* Name + expertise */}
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ fontSize: fontSize.card, fontWeight: '700', color: colors.textPrimary }}>
-                                {trainer.name}
-                            </Text>
-                            <Text style={{ fontSize: fontSize.caption, color: colors.textMuted, marginTop: 2 }}>
-                                {trainer.expertise.slice(0, 2).join(' · ')}
-                            </Text>
-                        </View>
-
-                        {/* Hourly rate */}
-                        <View style={{ alignItems: 'flex-end' }}>
-                            <Text style={{ fontSize: fontSize.stat, fontWeight: '800', color: colors.primary }}>
-                                {`₹${trainer.hourlyRate}`}
-                            </Text>
-                            <Text style={{ fontSize: fontSize.caption, color: colors.textMuted }}>
-                                /session
-                            </Text>
-                        </View>
-                    </View>
-                </Animated.View>
-
-                {/* ── Date selection ───────────────────────────────────────── */}
-                {/*
-                    gap lives on a plain child View, NOT on the Animated.View,
-                    so layout props never mix with animated transform styles.
-                */}
-                <Animated.View style={dateStyle}>
-                    <View style={{ gap: 12 }}>
-
-                        {/* Section header + session-count badge */}
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                                Select Date
-                            </Text>
-                            {sessionCount > 0 && (
-                                <View
-                                    style={{
-                                        backgroundColor: colors.primarySurface,
-                                        borderRadius: radius.full,
-                                        paddingHorizontal: 10,
-                                        paddingVertical: 3,
-                                        borderWidth: 1,
-                                        borderColor: colors.primaryBorderSm,
-                                    }}
-                                >
-                                    <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.primary }}>
-                                        {sessionCount === 1 ? '1 session' : `${sessionCount} sessions`}
-                                    </Text>
-                                </View>
-                            )}
-                        </View>
-
-                        {/* Mode selector: Single | Multi-Day | Week | Month */}
-                        <View style={{ flexDirection: 'row', gap: 8 }}>
-                            {SELECTION_MODE_OPTIONS.map((option) => {
-                                const isActive = selectionMode === option.value;
-                                return (
-                                    <TouchableOpacity
-                                        key={option.value}
-                                        onPress={() => handleSelectionModeChange(option.value)}
-                                        activeOpacity={0.75}
-                                        style={{
-                                            flex: 1,
-                                            paddingVertical: 8,
-                                            borderRadius: radius.md,
-                                            alignItems: 'center',
-                                            backgroundColor: isActive ? colors.primary : colors.surface,
-                                            borderWidth: 1,
-                                            borderColor: isActive ? colors.primary : colors.surfaceBorder,
-                                        }}
-                                    >
-                                        <Text
-                                            style={{
-                                                fontSize: fontSize.caption,
-                                                fontWeight: '700',
-                                                color: isActive ? colors.white : colors.textMuted,
-                                            }}
-                                        >
-                                            {option.label}
-                                        </Text>
-                                        {option.days !== null && (
-                                            <Text
-                                                style={{
-                                                    fontSize: fontSize.badge,
-                                                    color: isActive ? colors.white65 : colors.textSubtle,
-                                                    marginTop: 1,
-                                                }}
-                                            >
-                                                {`${option.days}d`}
-                                            </Text>
-                                        )}
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-
-                        {/* Contextual hint */}
-                        <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle }}>
-                            {selectionMode === 'single' && 'Tap a date to select one session.'}
-                            {selectionMode === 'multi' && 'Tap multiple dates to book separate sessions.'}
-                            {selectionMode === 'week' && 'Tap any date to auto-select a 7-day block.'}
-                            {selectionMode === 'month' && 'Tap any date to auto-select a 30-day block.'}
-                        </Text>
-
-                        {/* Horizontal date strip */}
-                        <ScrollView
-                            horizontal
-                            showsHorizontalScrollIndicator={false}
-                            contentContainerStyle={{ gap: 8, paddingVertical: 4 }}
-                        >
-                            {DATES.map((date) => {
-                                const d = new Date(date);
-                                const isSelected = selectedDates.includes(date);
-                                const isFirst = selectedDates[0] === date;
-                                const isLast = selectedDates[selectedDates.length - 1] === date;
-                                const isMiddle = isSelected && sessionCount > 1 && !isFirst && !isLast;
-
-                                return (
-                                    <TouchableOpacity
-                                        key={date}
-                                        onPress={() => handleDatePress(date)}
-                                        activeOpacity={0.75}
-                                        style={{
-                                            width: 62,
-                                            paddingVertical: 12,
-                                            borderRadius: radius.card,
-                                            alignItems: 'center',
-                                            backgroundColor: isSelected ? colors.primary : colors.white,
-                                            borderWidth: isFirst || isLast ? 2 : 1,
-                                            borderColor: isSelected ? colors.primary : colors.surfaceBorder,
-                                            opacity: isMiddle ? 0.72 : 1,
-                                            ...shadow.card,
-                                        }}
-                                    >
-                                        <Text
-                                            style={{
-                                                fontSize: fontSize.badge,
-                                                fontWeight: '600',
-                                                color: isSelected ? colors.white65 : colors.textSubtle,
-                                            }}
-                                        >
-                                            {WEEKDAY_LABELS_SHORT[d.getDay()]}
-                                        </Text>
-                                        <Text
-                                            style={{
-                                                fontSize: fontSize.stat,
-                                                fontWeight: '800',
-                                                color: isSelected ? colors.white : colors.textPrimary,
-                                                marginVertical: 2,
-                                            }}
-                                        >
-                                            {d.getDate()}
-                                        </Text>
-                                        <Text
-                                            style={{
-                                                fontSize: fontSize.badge,
-                                                fontWeight: '600',
-                                                color: isSelected ? colors.white65 : colors.textSubtle,
-                                            }}
-                                        >
-                                            {MONTH_LABELS_SHORT[d.getMonth()]}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                    </View>
-                </Animated.View>
-
-                {/* ── Time selection ───────────────────────────────────────── */}
-                <Animated.View style={timeStyle}>
-                    <View style={{ gap: 12 }}>
-                        <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                            Select Time
-                        </Text>
-
-                        {/* Two rows: morning (07–11) and afternoon (14–18) */}
-                        <View style={{ gap: 8 }}>
-                            {BOOKING_SLOT_ROWS.map((rowSlots) => (
-                                <View key={rowSlots[0]} style={{ flexDirection: 'row', gap: 8 }}>
-                                    {rowSlots.map((time) => {
-                                        const isSelected = selectedTime === time;
-                                        return (
-                                            <TouchableOpacity
-                                                key={time}
-                                                onPress={() => setSelectedTime((prev) => (prev === time ? null : time))}
-                                                activeOpacity={0.75}
-                                                style={{
-                                                    flex: 1,
-                                                    paddingVertical: 12,
-                                                    borderRadius: radius.md,
-                                                    alignItems: 'center',
-                                                    backgroundColor: isSelected ? colors.primary : colors.white,
-                                                    borderWidth: 1,
-                                                    borderColor: isSelected ? colors.primary : colors.surfaceBorder,
-                                                    ...shadow.cardSubtle,
-                                                }}
-                                            >
-                                                <Text
-                                                    style={{
-                                                        fontSize: fontSize.tag,
-                                                        fontWeight: '600',
-                                                        color: isSelected ? colors.white : colors.textSecondary,
-                                                    }}
-                                                >
-                                                    {time}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </View>
-                            ))}
-                        </View>
-                    </View>
-                </Animated.View>
-
-                {/* ── Notes ────────────────────────────────────────────────── */}
-                <View style={{ gap: 10 }}>
-                    <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                        Notes (optional)
-                    </Text>
-                    <TextInput
-                        value={notes}
-                        onChangeText={setNotes}
-                        placeholder={BOOKING_NOTES_PLACEHOLDER}
-                        placeholderTextColor={colors.textSubtle}
-                        maxLength={BOOKING_NOTES_MAX_LENGTH}
-                        multiline
-                        textAlignVertical="top"
-                        style={{
-                            backgroundColor: colors.white,
-                            borderWidth: 1,
-                            borderColor: colors.surfaceBorder,
-                            borderRadius: radius.card,
-                            paddingHorizontal: 16,
-                            paddingTop: 14,
-                            paddingBottom: 14,
-                            fontSize: fontSize.body,
-                            color: colors.textPrimary,
-                            height: 96,
-                        }}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
                     />
-                </View>
-
-                {/* ── Booking summary ───────────────────────────────────────── */}
-                {isReady && (
-                    <View
-                        style={{
-                            backgroundColor: colors.primarySurface,
-                            borderRadius: radius.card,
-                            padding: 18,
-                            borderWidth: 1,
-                            borderColor: colors.primaryBorder,
-                            gap: 12,
-                        }}
-                    >
-                        <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                            Booking Summary
-                        </Text>
-
-                        {/* Trainer */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Trainer</Text>
-                            <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                {trainer.name}
-                            </Text>
-                        </View>
-
-                        {/* Date (single) or Sessions + Period (multi) */}
-                        {sessionCount > 1 ? (
-                            <>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                    <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Sessions</Text>
-                                    <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                        {sessionCount}
-                                    </Text>
-                                </View>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                    <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Period</Text>
-                                    <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                        {formatPeriod(selectedDates)}
-                                    </Text>
-                                </View>
-                            </>
-                        ) : (
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Date</Text>
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                    {formatDateSummary(selectedDates[0])}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* Time */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                            <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Time</Text>
-                            <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                {`${selectedTime} – ${getEndTime(selectedTime!)}`}
-                            </Text>
-                        </View>
-
-                        {/* Divider */}
-                        <View style={{ height: 1, backgroundColor: colors.primaryBorderSm }} />
-
-                        {/* Rate breakdown (multi only) */}
-                        {sessionCount > 1 && (
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Rate</Text>
-                                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>
-                                    {`₹${trainer.hourlyRate} × ${sessionCount}`}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* Total */}
-                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                                Total
-                            </Text>
-                            <Text style={{ fontSize: fontSize.hero, fontWeight: '800', color: colors.primary }}>
-                                {`₹${totalAmount.toLocaleString()}`}
-                            </Text>
-                        </View>
-                    </View>
                 )}
+            >
+                <TrainerCard
+                    animatedStyle={cardStyle}
+                    avatar={trainer.avatar}
+                    initials={initials}
+                    name={trainer.name}
+                    expertise={trainer.expertise}
+                    hourlyRate={trainer.hourlyRate}
+                />
+
+                <WeeklyScheduleSection
+                    animatedStyle={dateStyle}
+                    availability={trainer.availability}
+                />
+
+                <MonthCalendarSection
+                    animatedStyle={dateStyle}
+                    calYear={calYear}
+                    calMonth={calMonth}
+                    isCurrentMonth={isCurrentMonth}
+                    onPrevMonth={onPrevMonth}
+                    onNextMonth={onNextMonth}
+                    availableCountThisMonth={availableCountThisMonth}
+                    hasAvailableDatesInfo={availableDates != null}
+                    calCells={calCells}
+                    availableSet={availableSet}
+                    bookedSet={bookedSet}
+                    todayStr={todayStr}
+                    selectedDates={selectedDates}
+                    activeSlotDate={activeSlotDate}
+                    isSlotsLoading={isSlotsLoading}
+                    onDatePress={handleDatePress}
+                    chunk={chunk}
+                />
+
+                {activeSlotDate !== null && selectedDates.size > 0 && (
+                    <TimeSlotsSection
+                        animatedStyle={timeStyle}
+                        activeSlotDate={activeSlotDate}
+                        selectedDates={selectedDates}
+                        isPerDateMode={isPerDateMode}
+                        perDateLimit={PER_DATE_LIMIT}
+                        trainerMode={trainerMode}
+                        chosenMode={chosenMode}
+                        setChosenMode={setChosenMode}
+                        slotsData={slotsData ?? null}
+                        isSlotsLoading={isSlotsLoading}
+                        slotPerDate={slotPerDate}
+                        selectedSlot={selectedSlot}
+                        onSlotPress={handleSlotPress}
+                        onChipPress={handleChipPress}
+                        formatDateSummary={formatDateSummary}
+                    />
+                )}
+
+                <NotesSection notes={notes} setNotes={setNotes} />
+
+                <BookingSummarySection
+                    isReady={isReady}
+                    trainer={trainer}
+                    selectedDates={selectedDates}
+                    isPerDateMode={isPerDateMode}
+                    slotPerDate={slotPerDate}
+                    selectedSlot={selectedSlot}
+                    effectiveMode={effectiveMode}
+                    formatDateSummary={formatDateSummary}
+                />
             </ScrollView>
 
-            {/* ── Fixed bottom CTA ───────────────────────────────────────────── */}
-            <View
-                style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    paddingHorizontal: 20,
-                    paddingTop: 12,
-                    paddingBottom: insets.bottom + 16,
-                    backgroundColor: colors.background,
-                    borderTopWidth: 1,
-                    borderTopColor: colors.surfaceBorder,
-                }}
-            >
-                <TouchableOpacity
-                    onPress={handleBook}
-                    disabled={!isReady || isLoading}
-                    activeOpacity={0.85}
-                    style={{
-                        backgroundColor: isReady && !isLoading ? colors.primary : colors.textDisabled,
-                        borderRadius: radius.card,
-                        paddingVertical: 16,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: 8,
-                        ...(isReady && !isLoading ? shadow.primary : {}),
-                    }}
-                >
-                    {isLoading ? (
-                        <ActivityIndicator color={colors.white} size="small" />
-                    ) : (
-                        <Ionicons name="checkmark-circle-outline" size={20} color={colors.white} />
-                    )}
-                    <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.white }}>
-                        {getButtonLabel()}
-                    </Text>
-                </TouchableOpacity>
-            </View>
+            <FixedCta
+                bottomInset={insets.bottom}
+                onPress={handleBook}
+                disabled={!isReady || isBooking}
+                isLoading={isBooking}
+                label={ctaLabel}
+            />
         </View>
     );
 }

@@ -19,7 +19,7 @@ export const API_CONFIG = {
             UPDATE_PROFILE: '/api/system/auth/update-profile/',
         },
         TRAINER: {
-            // ── Profile & Documents ───────────────────────────────────────────────
+            // ── Profile & Documents this for both trainer and client ───────────────────────────────────────────────
             REGISTER: '/api/system/auth/register/',
             UPDATE_PROFILE: '/api/trainer/update-profile/',
             UPDATE_PROFILE_DETAILS: '/api/system/trainer/update-profile/',

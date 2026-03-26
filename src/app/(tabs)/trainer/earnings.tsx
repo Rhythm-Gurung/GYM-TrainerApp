@@ -22,8 +22,8 @@ import { EARNINGS_STAT_CONFIGS } from '@/constants/trainerEarnings.constants';
 import { colors, fontSize, gradientColors } from '@/constants/theme';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { useTrainerEarnings } from '@/api/hooks';
-import type { TrainerPayout } from '@/types/trainerTypes';
-import type { Transaction } from '@/types/trainerTypes';
+import type { TrainerPayout, Transaction } from '@/types/trainerTypes';
+
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

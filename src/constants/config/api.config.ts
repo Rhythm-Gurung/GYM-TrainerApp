@@ -52,6 +52,45 @@ export const API_CONFIG = {
             // Presets are hardcoded templates on the frontend. Applying a preset
             // fills the Daily tab with slot values; trainer must tap Save to persist.
             PRESETS: '/api/trainer/schedule/presets/',
+
+            // ── Bookings (trainer's incoming + assigned) ─────────────────────────
+            // Trainer bookings list. Backend may reject the client-only /api/bookings/.
+            BOOKINGS: '/api/trainer/bookings/',
+        },
+        CLIENT: {
+            // ── Profile ───────────────────────────────────────────────────────────
+            // GET   /api/system/client/profile/        → fetch full profile
+            // PATCH /api/system/client/profile/        → update editable fields
+            // GET   /api/system/client/profile-image/  → fetch binary image
+            // PUT   /api/system/client/profile-image/  → upload / replace image (multipart)
+            // DELETE /api/system/client/profile-image/ → remove profile image
+            PROFILE: '/api/system/client/profile/',
+            PROFILE_IMAGE: '/api/system/client/profile-image/',
+
+            // ── Trainer discovery (client-facing) ─────────────────────────────────
+            // GET  /api/trainers/                       → list trainers (with filter params)
+            // GET  /api/trainers/{id}/                  → trainer detail (profile, certs, gallery, schedule)
+            // GET  /api/trainers/{id}/available-dates/?year=&month=  → bookable dates
+            // GET  /api/trainers/{id}/available-slots/?date=         → available time slots
+            // POST /api/trainers/{id}/book/                          → create a booking
+            TRAINERS: '/api/trainers/',
+            TRAINER_REVIEWS: '/api/trainers/', // append `{id}/reviews/` in service
+            TRAINER_FAVOURITE: '/api/trainers/', // append `{id}/favourite/` in service
+            FAVOURITES: '/api/favourites/',
+
+            // ── Bookings (client's own) ───────────────────────────────────────────
+            // GET  /api/bookings/              → list my bookings
+            // GET  /api/bookings/{id}/         → single booking detail
+            // POST /api/bookings/{id}/cancel/  → cancel a booking (body: { reason? })
+            BOOKINGS: '/api/bookings/',
+        },
+        PAYMENT: {
+            // POST /api/payment/initiate/         → body: { booking_id } → returns { pidx, payment_url, payment_id }
+            // GET  /api/payment/status/{booking_id}/  → payment + booking status
+            // GET  /api/payment/trainer/earnings/ → trainer earnings summary + payout list
+            INITIATE: '/api/payment/initiate/',
+            STATUS: '/api/payment/status/',
+            TRAINER_EARNINGS: '/api/payment/trainer/earnings/',
         },
         TOKEN: {
             REFRESH: '/api/token/refresh/',

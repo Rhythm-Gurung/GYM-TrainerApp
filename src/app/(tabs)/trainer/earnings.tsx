@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useRef } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -19,12 +19,23 @@ import StatsCard from '@/components/client/StatsCard';
 import TransactionCard from '@/components/trainer/TransactionCard';
 import HeroGradient from '@/components/ui/HeroGradient';
 import { EARNINGS_STAT_CONFIGS } from '@/constants/trainerEarnings.constants';
-import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
+import { colors, fontSize, gradientColors } from '@/constants/theme';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { showErrorToast } from '@/lib';
-import { fetchMockEarnings } from '@/mockData/trainerEarnings.mock';
-import type { EarningsSummary } from '@/types/clientTypes';
-import type { Transaction } from '@/types/trainerTypes';
+import { useTrainerEarnings } from '@/api/hooks';
+import type { TrainerPayout, Transaction } from '@/types/trainerTypes';
+
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function payoutToTransaction(payout: TrainerPayout): Transaction {
+    return {
+        id: String(payout.payout_id),
+        description: `${payout.client_name} · ${payout.payout_type_label} (${payout.status_label})`,
+        amount: payout.amount_rs,
+        type: payout.status === 'transferred' ? 'credit' : 'debit',
+        date: payout.transferred_at ?? payout.booking_date,
+    };
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -35,15 +46,11 @@ export default function TrainerEarnings() {
     const tabBarHeight = useTabBarHeight();
     const insets = useSafeAreaInsets();
 
-    const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [isRefreshing, setIsRefreshing] = useState(false);
+    const { data, isLoading, refetch, isFetching } = useTrainerEarnings();
 
     const statsY = useSharedValue(SLIDE);
-    const commissionY = useSharedValue(SLIDE);
     const txY = useSharedValue(SLIDE);
-    const anim = useRef({ statsY, commissionY, txY });
+    const anim = useRef({ statsY, txY });
 
     useFocusEffect(
         useCallback(() => {
@@ -51,46 +58,22 @@ export default function TrainerEarnings() {
             const ease = { duration: DUR };
             v.statsY.value = SLIDE;
             v.statsY.value = withTiming(0, ease);
-            v.commissionY.value = SLIDE;
-            v.commissionY.value = withDelay(80, withTiming(0, ease));
             v.txY.value = SLIDE;
-            v.txY.value = withDelay(160, withTiming(0, ease));
+            v.txY.value = withDelay(80, withTiming(0, ease));
         }, []),
     );
 
-    const fetchData = useCallback(async () => {
-        const { earnings: e, transactions: t } = await fetchMockEarnings();
-        setEarnings(e);
-        setTransactions(t);
-    }, []);
-
-    useFocusEffect(
-        useCallback(() => {
-            fetchData()
-                .catch(() => showErrorToast('Failed to load earnings', 'Error'))
-                .finally(() => setIsLoading(false));
-        }, [fetchData]),
-    );
-
-    const handleRefresh = useCallback(async () => {
-        setIsRefreshing(true);
-        await fetchData().catch(() => showErrorToast('Failed to load earnings', 'Error'));
-        setIsRefreshing(false);
-    }, [fetchData]);
-
     const statsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: statsY.value }] }));
-    const commissionStyle = useAnimatedStyle(() => ({ transform: [{ translateY: commissionY.value }] }));
     const txStyle = useAnimatedStyle(() => ({ transform: [{ translateY: txY.value }] }));
 
-    const commissionPct = earnings
-        ? Math.round((earnings.commissionPaid / earnings.totalEarnings) * 100)
-        : 0;
+    const summary = data?.summary;
+    const payouts = data?.payouts ?? [];
 
     const statValues: Record<string, string> = {
-        earnings: earnings ? `₹${earnings.totalEarnings.toLocaleString('en-IN')}` : '—',
-        pending: earnings ? `₹${earnings.pendingPayouts.toLocaleString('en-IN')}` : '—',
-        completed: earnings ? `₹${earnings.completedPayouts.toLocaleString('en-IN')}` : '—',
-        commission: earnings ? `₹${earnings.commissionPaid.toLocaleString('en-IN')}` : '—',
+        total_earned: summary ? `Rs. ${summary.total_earned_rs.toLocaleString('en-IN')}` : '—',
+        pending_transfer: summary ? `Rs. ${summary.pending_transfer_rs.toLocaleString('en-IN')}` : '—',
+        on_hold: summary ? `Rs. ${summary.on_hold_rs.toLocaleString('en-IN')}` : '—',
+        total_bookings: summary ? String(summary.total_bookings_paid) : '—',
     };
 
     if (isLoading) {
@@ -111,8 +94,8 @@ export default function TrainerEarnings() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={(
                     <RefreshControl
-                        refreshing={isRefreshing}
-                        onRefresh={handleRefresh}
+                        refreshing={isFetching}
+                        onRefresh={refetch}
                         tintColor={colors.trainerPrimary}
                         colors={[colors.trainerPrimary]}
                     />
@@ -145,72 +128,21 @@ export default function TrainerEarnings() {
                         ))}
                     </Animated.View>
 
-                    {/* Commission Breakdown */}
-                    <Animated.View
-                        style={[
-                            {
-                                backgroundColor: colors.white,
-                                borderRadius: radius.card,
-                                padding: 20,
-                                borderWidth: 1,
-                                borderColor: colors.surfaceBorder,
-                                ...shadow.cardSubtle,
-                            },
-                            commissionStyle,
-                        ]}
-                    >
-                        <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary, marginBottom: 16 }}>
-                            Commission Breakdown
-                        </Text>
-
-                        <View style={{ gap: 10 }}>
-                            {/* Rate row */}
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Rate</Text>
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                    {`${earnings?.commissionRate ?? 0}%`}
-                                </Text>
-                            </View>
-
-                            {/* Total paid row */}
-                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted }}>Total Paid</Text>
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                    {`₹${earnings?.commissionPaid.toLocaleString('en-IN') ?? 0}`}
-                                </Text>
-                            </View>
-
-                            {/* Progress bar */}
-                            <View
-                                style={{
-                                    height: 10,
-                                    backgroundColor: colors.surface,
-                                    borderRadius: radius.full,
-                                    overflow: 'hidden',
-                                    marginTop: 4,
-                                }}
-                            >
-                                <View
-                                    style={{
-                                        height: '100%',
-                                        width: `${commissionPct}%`,
-                                        backgroundColor: colors.trainerPrimary,
-                                        borderRadius: radius.full,
-                                    }}
-                                />
-                            </View>
-                        </View>
-                    </Animated.View>
-
-                    {/* Recent Transactions */}
+                    {/* Payouts list */}
                     <Animated.View style={txStyle}>
                         <Text style={{ fontSize: fontSize.section, fontWeight: '700', color: colors.textPrimary, marginBottom: 12 }}>
-                            Recent Transactions
+                            Payout History
                         </Text>
 
-                        {transactions.map((txn) => (
-                            <TransactionCard key={txn.id} transaction={txn} />
-                        ))}
+                        {payouts.length === 0 ? (
+                            <Text style={{ fontSize: fontSize.body, color: colors.textMuted, textAlign: 'center', paddingVertical: 24 }}>
+                                No payouts yet
+                            </Text>
+                        ) : (
+                            payouts.map((payout) => (
+                                <TransactionCard key={payout.payout_id} transaction={payoutToTransaction(payout)} />
+                            ))
+                        )}
                     </Animated.View>
 
                 </View>

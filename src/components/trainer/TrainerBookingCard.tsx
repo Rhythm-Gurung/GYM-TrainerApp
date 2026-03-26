@@ -9,31 +9,43 @@ import type { TrainerSession } from '@/types/trainerTypes';
 type SessionStatus = TrainerSession['status'];
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
+    pending: 'Pending',
+    accepted: 'Accepted',
     confirmed: 'Confirmed',
     completed: 'Completed',
-    pending: 'Pending',
     cancelled: 'Cancelled',
+    refund_pending: 'Refund Pending',
+    refunded: 'Refunded',
 };
 
 const STATUS_COLOR: Record<SessionStatus, string> = {
+    pending: colors.accent,
+    accepted: colors.trainerPrimary,
     confirmed: colors.trainerPrimary,
     completed: colors.success,
-    pending: colors.accent,
     cancelled: colors.error,
+    refund_pending: colors.accent,
+    refunded: colors.success,
 };
 
 const STATUS_BG: Record<SessionStatus, string> = {
+    pending: colors.accentBg,
+    accepted: colors.trainerMuted,
     confirmed: colors.trainerMuted,
     completed: colors.statusNewBg,
-    pending: colors.accentBg,
     cancelled: colors.errorBg,
+    refund_pending: colors.accentBg,
+    refunded: colors.statusNewBg,
 };
 
 const STATUS_ICON: Record<SessionStatus, keyof typeof Ionicons.glyphMap> = {
+    pending: 'time-outline',
+    accepted: 'checkmark-circle-outline',
     confirmed: 'checkmark-circle-outline',
     completed: 'trophy-outline',
-    pending: 'time-outline',
     cancelled: 'close-circle-outline',
+    refund_pending: 'refresh-outline',
+    refunded: 'checkmark-done-outline',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

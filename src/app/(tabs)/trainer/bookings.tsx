@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -16,16 +16,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import TrainerBookingCard from '@/components/trainer/TrainerBookingCard';
+import { useConfirmBooking, useCancelTrainerBooking, useTrainerBookings } from '@/api/hooks/useTrainerBookings';
+import ClientBookingGroup, { type ClientGroup } from '@/components/trainer/ClientBookingGroup';
+import { colors, fontSize, radius } from '@/constants/theme';
 import {
     STATUS_TABS,
     type BookingFilterStatus,
 } from '@/constants/trainerBookings.constants';
-import { colors, fontSize, radius } from '@/constants/theme';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { showErrorToast, showInfoToast, showSuccessToast } from '@/lib';
-import { fetchMockTrainerBookings } from '@/mockData/trainerBookings.mock';
-import type { TrainerSession } from '@/types/trainerTypes';
+import { showInfoToast, showSuccessToast } from '@/lib';
+import type { TrainerSession } from '@/types/trainerTypes'; // used in statusOverrides Record type
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -36,9 +36,12 @@ export default function TrainerBookings() {
     const tabBarHeight = useTabBarHeight();
     const { tab } = useLocalSearchParams<{ tab?: string }>();
 
-    const [bookings, setBookings] = useState<TrainerSession[]>([]);
+    const { data, isLoading, isFetching, refetch } = useTrainerBookings();
+    const { mutateAsync: confirmBooking } = useConfirmBooking();
+    const { mutateAsync: cancelTrainerBooking } = useCancelTrainerBooking();
+
+    const [statusOverrides, setStatusOverrides] = useState<Record<string, TrainerSession['status']>>({});
     const [activeTab, setActiveTab] = useState<BookingFilterStatus>('pending');
-    const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const listY = useSharedValue(SLIDE);
@@ -55,24 +58,21 @@ export default function TrainerBookings() {
         }, []),
     );
 
-    const fetchData = useCallback(async () => {
-        const data = await fetchMockTrainerBookings();
-        setBookings(data);
-    }, []);
-
     useFocusEffect(
         useCallback(() => {
-            fetchData()
-                .catch(() => showErrorToast('Failed to load bookings', 'Error'))
-                .finally(() => setIsLoading(false));
-        }, [fetchData]),
+            // Refresh on focus to show new booking requests.
+            // NOTE: useApiQuery swallows errors and shows its own toast by default.
+            refetch().catch(() => { });
+        }, [refetch]),
     );
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
-        await fetchData().catch(() => showErrorToast('Failed to load bookings', 'Error'));
+        // Drop optimistic UI overrides so we always reflect the server truth after refresh.
+        setStatusOverrides({});
+        await refetch();
         setIsRefreshing(false);
-    }, [fetchData]);
+    }, [refetch]);
 
     // Sync active tab from navigation param every time the screen is focused
     useFocusEffect(
@@ -88,29 +88,68 @@ export default function TrainerBookings() {
         opacity: listOpacity.value,
     }));
 
-    const filtered =
-        activeTab === 'all'
-            ? bookings
-            : bookings.filter((b) => b.status === activeTab);
+    const bookings = useMemo<TrainerSession[]>(() => {
+        const base = data ?? [];
+        if (!base.length) return [];
+        return base.map((b) => {
+            const override = statusOverrides[b.id];
+            return override ? { ...b, status: override } : b;
+        });
+    }, [data, statusOverrides]);
 
-    const handleAccept = (id: string) => {
-        setBookings((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status: 'confirmed' } : b)),
+    // Group sessions by client — one card per client
+    const filteredGroups = useMemo<ClientGroup[]>(() => {
+        const groups = Object.values(
+            bookings.reduce<Record<string, ClientGroup>>((acc, session) => {
+                if (acc[session.clientId]) {
+                    acc[session.clientId].sessions.push(session);
+                } else {
+                    acc[session.clientId] = {
+                        clientId: session.clientId,
+                        clientName: session.clientName,
+                        clientAvatar: session.clientAvatar ?? '',
+                        sessions: [session],
+                    };
+                }
+                return acc;
+            }, {}),
         );
-        showSuccessToast('Booking accepted');
-    };
+        if (activeTab === 'all') return groups;
+        return groups.filter((g) => g.sessions.some((s) => s.status === activeTab));
+    }, [bookings, activeTab]);
 
-    const handleReject = (id: string) => {
-        setBookings((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status: 'cancelled' } : b)),
-        );
-        showInfoToast('Booking rejected');
-    };
+    const handleAccept = useCallback(async (id: string) => {
+        // Optimistic update — status moves to 'accepted' (client must now pay)
+        setStatusOverrides((prev) => ({ ...prev, [id]: 'accepted' }));
+        try {
+            await confirmBooking(id);
+            showSuccessToast('Booking accepted. Waiting for client to pay.');
+        } catch {
+            // Revert optimistic update on failure
+            setStatusOverrides((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+            });
+        }
+    }, [confirmBooking]);
+
+    const handleReject = useCallback(async (id: string) => {
+        setStatusOverrides((prev) => ({ ...prev, [id]: 'cancelled' }));
+        try {
+            await cancelTrainerBooking({ id, reason: 'Not available on that day' });
+            showInfoToast('Booking rejected');
+        } catch {
+            setStatusOverrides((prev) => {
+                const next = { ...prev };
+                delete next[id];
+                return next;
+            });
+        }
+    }, [cancelTrainerBooking]);
 
     const handleComplete = (id: string) => {
-        setBookings((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status: 'completed' } : b)),
-        );
+        setStatusOverrides((prev) => ({ ...prev, [id]: 'completed' }));
         showSuccessToast('Session marked as completed');
     };
 
@@ -189,18 +228,19 @@ export default function TrainerBookings() {
                 showsVerticalScrollIndicator={false}
                 refreshControl={(
                     <RefreshControl
-                        refreshing={isRefreshing}
+                        refreshing={isRefreshing || (isFetching && !isLoading)}
                         onRefresh={handleRefresh}
                         tintColor={colors.trainerPrimary}
                         colors={[colors.trainerPrimary]}
                     />
                 )}
             >
-                {filtered.length > 0 ? (
-                    filtered.map((session) => (
-                        <TrainerBookingCard
-                            key={session.id}
-                            session={session}
+                {filteredGroups.length > 0 ? (
+                    filteredGroups.map((group) => (
+                        <ClientBookingGroup
+                            key={group.clientId}
+                            group={group}
+                            filterStatus={activeTab}
                             onAccept={handleAccept}
                             onReject={handleReject}
                             onComplete={handleComplete}

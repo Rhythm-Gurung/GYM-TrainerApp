@@ -14,7 +14,7 @@ export const getClientMenuItems = (router: Router): ClientMenuItem[] => [
         icon: 'person-outline',
         label: 'Edit Profile',
         onPress: () => {
-            // TODO: Navigate to client edit profile
+            router.push('/(tabs)/client/profile/editProfile' as never);
         },
     },
     {

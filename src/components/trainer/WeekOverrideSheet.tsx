@@ -11,6 +11,26 @@ import type { DaySchedule, SessionMode } from '@/types/trainerTypes';
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+/** Returns the date string for the given day-of-week offset from the week's Sunday start. */
+function getDateForDow(weekSunday: string, dayOfWeek: number): string {
+    const [y, m, d] = weekSunday.split('-').map(Number);
+    const date = new Date(y, m - 1, d + dayOfWeek);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** Rounds the current time UP to the next 30-min slot. e.g. 19:50 → "20:00". */
+function currentTimeRoundedUp(): string {
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const rounded = Math.min(Math.ceil(mins / 30) * 30, 22 * 60);
+    return `${String(Math.floor(rounded / 60)).padStart(2, '0')}:${String(rounded % 60).padStart(2, '0')}`;
+}
+
+function todayDateStr(): string {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+}
+
 function formatDateRange(start: string, end: string): string {
     const [sy, sm, sd] = start.split('-').map(Number);
     const [, em, ed] = end.split('-').map(Number);
@@ -52,19 +72,29 @@ export default function WeekOverrideSheet({
 
     const toggleDay = useCallback((dayIndex: number) => {
         setLocalSchedule((prev) =>
-            prev.map((d) =>
-                (d.dayOfWeek === dayIndex
-                    ? {
-                          ...d,
-                          enabled: !d.enabled,
-                          slots: !d.enabled
-                              ? [{ id: `${dayIndex}-${Date.now()}`, ...DEFAULT_NEW_SLOT }]
-                              : [],
-                      }
-                    : d),
-            ),
+            prev.map((d) => {
+                if (d.dayOfWeek !== dayIndex) return d;
+                if (d.enabled) return { ...d, enabled: false, slots: [] };
+
+                // Build the initial slot — clamp to current time if this is today
+                let { startTime, endTime } = DEFAULT_NEW_SLOT;
+                const dayDate = getDateForDow(startDate, dayIndex);
+                if (dayDate === todayDateStr()) {
+                    const minTime = currentTimeRoundedUp();
+                    const [mh, mm] = minTime.split(':').map(Number);
+                    const minMins = mh * 60 + mm;
+                    const [sh, sm] = startTime.split(':').map(Number);
+                    if (sh * 60 + sm < minMins) {
+                        startTime = minTime;
+                        const endMins = Math.min(minMins + 60, 22 * 60);
+                        endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+                    }
+                }
+
+                return { ...d, enabled: true, slots: [{ id: `${dayIndex}-${Date.now()}`, startTime, endTime }] };
+            }),
         );
-    }, []);
+    }, [startDate]);
 
     const addSlot = useCallback((dayIndex: number) => {
         setLocalSchedule((prev) =>
@@ -84,10 +114,24 @@ export default function WeekOverrideSheet({
                         endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
                     }
                 }
+
+                // For today: clamp start time to current time if the default falls in the past
+                const dayDate = getDateForDow(startDate, dayIndex);
+                if (dayDate === todayDateStr()) {
+                    const minTime = currentTimeRoundedUp();
+                    const [sh, sm] = startTime.split(':').map(Number);
+                    const [mh, mm] = minTime.split(':').map(Number);
+                    if (sh * 60 + sm < mh * 60 + mm) {
+                        startTime = minTime;
+                        const endMins = Math.min(mh * 60 + mm + 60, 22 * 60);
+                        endTime = `${String(Math.floor(endMins / 60)).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+                    }
+                }
+
                 return { ...d, slots: [...d.slots, { id: `${dayIndex}-${Date.now()}`, startTime, endTime }] };
             }),
         );
-    }, []);
+    }, [startDate]);
 
     const removeSlot = useCallback((dayIndex: number, slotId: string) => {
         setLocalSchedule((prev) =>
@@ -205,18 +249,24 @@ only.
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {localSchedule.map((day) => (
-                        <DayScheduleCard
-                            key={day.dayOfWeek}
-                            day={day}
-                            onToggle={() => toggleDay(day.dayOfWeek)}
-                            onAddSlot={() => addSlot(day.dayOfWeek)}
-                            onRemoveSlot={(slotId) => removeSlot(day.dayOfWeek, slotId)}
-                            onUpdateSlot={(slotId, field, value) =>
-                                updateSlot(day.dayOfWeek, slotId, field, value)}
-                            onSessionModeChange={(mode) => setSessionMode(day.dayOfWeek, mode)}
-                        />
-                    ))}
+                    {localSchedule.map((day) => {
+                        const dayDate = getDateForDow(startDate, day.dayOfWeek);
+                        const today = todayDateStr();
+                        return (
+                            <DayScheduleCard
+                                key={day.dayOfWeek}
+                                day={day}
+                                onToggle={() => toggleDay(day.dayOfWeek)}
+                                onAddSlot={() => addSlot(day.dayOfWeek)}
+                                onRemoveSlot={(slotId) => removeSlot(day.dayOfWeek, slotId)}
+                                onUpdateSlot={(slotId, field, value) =>
+                                    updateSlot(day.dayOfWeek, slotId, field, value)}
+                                onSessionModeChange={(mode) => setSessionMode(day.dayOfWeek, mode)}
+                                isPastDay={dayDate < today}
+                                minStartTime={dayDate === today ? currentTimeRoundedUp() : undefined}
+                            />
+                        );
+                    })}
                 </ScrollView>
 
                 {/* Action buttons */}

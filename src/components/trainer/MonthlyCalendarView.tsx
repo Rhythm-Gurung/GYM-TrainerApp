@@ -5,7 +5,7 @@ import { Text, TouchableOpacity, View } from 'react-native';
 import { colors, fontSize, radius } from '@/constants/theme';
 import { DAYS_OF_WEEK, SHORT_DAY_LABELS } from '@/constants/trainerSchedule.constants';
 import type { DateOverride, ScheduleOverride, ScheduleScope } from '@/types/trainerAvailability.types';
-import type { DaySchedule } from '@/types/trainerTypes';
+import type { DaySchedule, TrainerSession } from '@/types/trainerTypes';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +52,7 @@ interface MonthlyCalendarViewProps {
     dateOverrides: DateOverride[];
     scheduleOverrides?: ScheduleOverride[];
     scheduleScope?: ScheduleScope | null;
+    bookings?: TrainerSession[];
     onToggleDateOverride: (dateStr: string) => void;
     onMonthChange?: (year: number, month: number) => void;
     onWeekCustomize?: (startDate: string, endDate: string, existing?: ScheduleOverride) => void;
@@ -62,6 +63,7 @@ export default function MonthlyCalendarView({
     dateOverrides,
     scheduleOverrides = [],
     scheduleScope,
+    bookings = [],
     onToggleDateOverride,
     onMonthChange,
     onWeekCustomize,
@@ -78,6 +80,17 @@ export default function MonthlyCalendarView({
     const firstDay = getFirstDayOfMonth(year, month);
 
     const overriddenDates = new Set(dateOverrides.map((o) => o.date));
+
+    // Build a map of date → booking statuses for dot indicators
+    const bookingsByDate = new Map<string, { pending: boolean; confirmed: boolean; completed: boolean }>();
+    bookings.forEach((session) => {
+        if (!session.date) return;
+        const existing = bookingsByDate.get(session.date) ?? { pending: false, confirmed: false, completed: false };
+        if (session.status === 'pending') existing.pending = true;
+        else if (session.status === 'confirmed') existing.confirmed = true;
+        else if (session.status === 'completed') existing.completed = true;
+        bookingsByDate.set(session.date, existing);
+    });
 
     // Build grid cells
     const cells: (number | null)[] = [
@@ -129,8 +142,9 @@ export default function MonthlyCalendarView({
             (o) => o.start_date <= endStr && o.end_date >= startStr,
         );
         const isPast = weekEndObj < today;
-        // Entire week is beyond the schedule's effective_until
-        const isBeyondScope = !!(scheduleScope?.effective_until && startStr > scheduleScope.effective_until);
+        // Entire week is outside the schedule's effective range
+        const isBeyondScope = !!(scheduleScope?.effective_until && startStr > scheduleScope.effective_until)
+            || !!(scheduleScope?.effective_from && endStr < scheduleScope.effective_from);
         return { startStr, endStr, weekStartObj, weekEndObj, override, isPast, isBeyondScope, rowIdx };
     });
 
@@ -259,21 +273,32 @@ export default function MonthlyCalendarView({
                                 (d) => d.dayOfWeek === dotw && d.enabled,
                             );
 
-                            const isBeyondScope = !!(scheduleScope?.effective_until && dateStr > scheduleScope.effective_until);
+                            const isBeyondScope = !!(scheduleScope?.effective_until && dateStr > scheduleScope.effective_until)
+                                || !!(scheduleScope?.effective_from && dateStr < scheduleScope.effective_from);
                             const isEffectivelyAvailable = isWeeklyAvailable && !isOverridden && !isPast && !isBeyondScope;
                             const isTappable = isWeeklyAvailable && !isPast && !isBeyondScope;
 
                             let bgColor: string = 'transparent';
                             let textColor: string = colors.textSubtle;
                             let fontWeight: '400' | '600' | '700' = '400';
+                            let borderColor: string = 'transparent';
+                            let borderWidth = 0;
 
                             if (isToday && isEffectivelyAvailable) {
                                 bgColor = colors.trainerPrimary;
                                 textColor = colors.white;
                                 fontWeight = '700';
+                            } else if (isToday && isOverridden) {
+                                bgColor = colors.errorBg;
+                                textColor = colors.error;
+                                borderColor = colors.trainerPrimary;
+                                borderWidth = 2;
+                                fontWeight = '700';
                             } else if (isToday) {
-                                bgColor = colors.surface;
-                                textColor = colors.textMuted;
+                                bgColor = 'transparent';
+                                textColor = colors.trainerPrimary;
+                                borderColor = colors.trainerPrimary;
+                                borderWidth = 2;
                                 fontWeight = '700';
                             } else if (isPast || isBeyondScope) {
                                 textColor = colors.textDisabled;
@@ -287,8 +312,10 @@ export default function MonthlyCalendarView({
                                 fontWeight = '600';
                             }
 
+                            const bookingDots = bookingsByDate.get(dateStr);
+
                             return (
-                                <View key={dateStr} style={{ flex: 1, alignItems: 'center', justifyContent: 'center', height: 38 }}>
+                                <View key={dateStr} style={{ flex: 1, alignItems: 'center', height: 44 }}>
                                     <TouchableOpacity
                                         onPress={() => isTappable && onToggleDateOverride(dateStr)}
                                         disabled={!isTappable}
@@ -300,6 +327,9 @@ export default function MonthlyCalendarView({
                                             alignItems: 'center',
                                             justifyContent: 'center',
                                             backgroundColor: bgColor,
+                                            borderWidth,
+                                            borderColor,
+                                            marginTop: 2,
                                         }}
                                     >
                                         <Text style={{ fontSize: fontSize.tag, fontWeight, color: textColor }}>
@@ -317,6 +347,19 @@ export default function MonthlyCalendarView({
                                             />
                                         )}
                                     </TouchableOpacity>
+                                    {bookingDots && (bookingDots.pending || bookingDots.confirmed || bookingDots.completed) && (
+                                        <View style={{ flexDirection: 'row', gap: 3, marginTop: 2 }}>
+                                            {bookingDots.pending && (
+                                                <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.accent }} />
+                                            )}
+                                            {bookingDots.confirmed && (
+                                                <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.success }} />
+                                            )}
+                                            {bookingDots.completed && (
+                                                <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: colors.textSubtle }} />
+                                            )}
+                                        </View>
+                                    )}
                                 </View>
                             );
                         })}
@@ -325,22 +368,38 @@ export default function MonthlyCalendarView({
             })}
 
             {/* Legend */}
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 14, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.trainerMuted }} />
-                    <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Available</Text>
+            <View style={{ gap: 6, marginTop: 14 }}>
+                <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.trainerMuted }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Available</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.errorBg, borderWidth: 1, borderColor: colors.error }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Blocked</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: colors.trainerPrimary }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Today</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: `${colors.trainerPrimary}20`, borderWidth: 1, borderColor: `${colors.trainerPrimary}40` }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Custom week</Text>
+                    </View>
                 </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.errorBg, borderWidth: 1, borderColor: colors.error }} />
-                    <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Blocked</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: colors.trainerPrimary }} />
-                    <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Today</Text>
-                </View>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
-                    <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: `${colors.trainerPrimary}20`, borderWidth: 1, borderColor: `${colors.trainerPrimary}40` }} />
-                    <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Custom week</Text>
+                <View style={{ flexDirection: 'row', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.accent }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Pending booking</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.success }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Confirmed</Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.textSubtle }} />
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>Completed</Text>
+                    </View>
                 </View>
             </View>
 

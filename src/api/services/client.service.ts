@@ -1,8 +1,13 @@
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
-import { mapApiBooking } from '@/types/clientTypes';
 import type { ClientProfileEditForm, User } from '@/types/authTypes';
 import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, PaymentInitiateResponse, PaymentStatusResponse } from '@/types/clientTypes';
+import { mapApiBooking } from '@/types/clientTypes';
+
+export interface BookingStats {
+    totalCount: number;
+    completedCount: number;
+}
 
 export interface TrainerListParams {
     search?: string;
@@ -212,6 +217,27 @@ export const clientService = {
         const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.CLIENT.BOOKINGS);
         const result = data?.data ?? data?.results ?? data;
         return Array.isArray(result) ? result.map(mapApiBooking) : [];
+    },
+
+    /**
+     * Fetch global booking stats across the whole system.
+     * GET /api/bookings/stats/
+     * Expected: { data: { total_count, completed_count } } (but we also accept a few common variants).
+     */
+    getBookingsStats: async (): Promise<BookingStats> => {
+        const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.CLIENT.BOOKINGS_STATS);
+        const raw = (data?.data ?? data) as Record<string, unknown>;
+
+        const totalRaw = raw.total_count ?? raw.totalCount ?? 0;
+        const completedRaw = raw.completed_count ?? raw.completedCount ?? 0;
+
+        const totalCount = typeof totalRaw === 'number' ? totalRaw : Number(totalRaw ?? 0);
+        const completedCount = typeof completedRaw === 'number' ? completedRaw : Number(completedRaw ?? 0);
+
+        return {
+            totalCount: Number.isFinite(totalCount) ? totalCount : 0,
+            completedCount: Number.isFinite(completedCount) ? completedCount : 0,
+        };
     },
 
     /**

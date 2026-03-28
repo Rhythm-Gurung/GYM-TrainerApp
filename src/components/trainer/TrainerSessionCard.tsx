@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Text, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 import { colors, fontSize, radius } from '@/constants/theme';
 import type { TrainerSession } from '@/types/trainerTypes';
@@ -68,11 +68,14 @@ function getInitials(name: string): string {
 
 interface TrainerSessionCardProps {
     session: TrainerSession;
+    onPress?: () => void;
 }
 
-export default function TrainerSessionCard({ session }: TrainerSessionCardProps) {
+export default function TrainerSessionCard({ session, onPress }: TrainerSessionCardProps) {
     return (
-        <View
+        <TouchableOpacity
+            onPress={onPress}
+            activeOpacity={onPress ? 0.7 : 1}
             style={{
                 backgroundColor: colors.white,
                 borderRadius: radius.card,
@@ -149,6 +152,6 @@ export default function TrainerSessionCard({ session }: TrainerSessionCardProps)
                     </Text>
                 </View>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }

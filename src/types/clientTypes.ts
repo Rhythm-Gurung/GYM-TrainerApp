@@ -220,6 +220,8 @@ export interface AppNotification {
     message: string;
     isRead: boolean;
     createdAt: string;
+    /** Optional backend payload for deep-link routing (e.g., booking_id, status). */
+    data?: Record<string, unknown>;
 }
 
 export interface EarningsSummary {

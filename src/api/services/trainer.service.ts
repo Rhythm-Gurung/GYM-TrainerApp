@@ -1,16 +1,17 @@
     import { apiClient } from '@/api/client';
+import { authService } from '@/api/services/auth.service';
 import { API_CONFIG } from '@/constants/config';
 import type { DateOverride, ScheduleOverride, ScheduleScope } from '@/types/trainerAvailability.types';
 import type {
-    CertificationListItem,
-    DaySchedule,
-    GalleryItem,
-    SessionMode,
-    TrainerEarningsResponse,
-    TrainerRegisterInput,
-    TrainerRegisterResponse,
-    TrainerSession,
-    TrainerSessionStatus,
+  CertificationListItem,
+  DaySchedule,
+  GalleryItem,
+  SessionMode,
+  TrainerEarningsResponse,
+  TrainerRegisterInput,
+  TrainerRegisterResponse,
+  TrainerSession,
+  TrainerSessionStatus,
 } from '@/types/trainerTypes';
 
 function parseMoney(value: unknown): number {
@@ -179,8 +180,10 @@ export const trainerService = {
    * Get trainer profile
    */
   getProfile: async (): Promise<unknown> => {
-    const { data } = await apiClient.get(API_CONFIG.ENDPOINTS.TRAINER.GET_PROFILE);
-    return data;
+    // Backend does not currently expose a trainer-only "profile stats" endpoint.
+    // Use whoami as the canonical source for the current logged-in user's info.
+    const user = await authService.getProfile();
+    return user;
   },
 
   /**

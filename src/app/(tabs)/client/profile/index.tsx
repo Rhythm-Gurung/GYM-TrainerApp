@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
@@ -18,12 +18,14 @@ import Animated, {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { clientService } from '@/api/services/client.service';
+import TrainerCard from '@/components/client/TrainerCard';
 import HeroGradient from '@/components/ui/HeroGradient';
-import { useAuth } from '@/contexts/auth';
 import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { showErrorToast } from '@/lib';
 import type { User } from '@/types/authTypes';
+import { mapApiTrainer, type ApiTrainer } from '@/types/clientTypes';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -57,12 +59,19 @@ const DUR = 350;
 
 export default function ClientProfile() {
     const router = useRouter();
+    const { scrollTo } = useLocalSearchParams<{ scrollTo?: string }>();
     const tabBarHeight = useTabBarHeight();
     const insets = useSafeAreaInsets();
     const { authState, getProfile } = useAuth();
     const [userData, setUserData] = useState<User | null>(authState.user);
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const [favourites, setFavourites] = useState<ApiTrainer[]>([]);
+    const [showAllFavourites, setShowAllFavourites] = useState(false);
+
+    const scrollRef = useRef<ScrollView | null>(null);
+    const favouritesYRef = useRef<number>(0);
 
     const cardY = useSharedValue(SLIDE);
     const anim = useRef({ cardY });
@@ -80,8 +89,12 @@ export default function ClientProfile() {
     const fetchProfile = useCallback(async () => {
         try {
             setIsLoading(true);
-            const profile = await getProfile();
+            const [profile, favs] = await Promise.all([
+                getProfile(),
+                clientService.getFavourites(),
+            ]);
             setUserData(profile);
+            setFavourites(favs);
         } catch {
             showErrorToast('Failed to load profile', 'Error');
         } finally {
@@ -101,10 +114,22 @@ export default function ClientProfile() {
         setIsRefreshing(false);
     }, [fetchProfile]);
 
+    useEffect(() => {
+        if (scrollTo !== 'favourites') return undefined;
+        // Defer slightly to allow layout measurement to settle.
+        const t = setTimeout(() => {
+            scrollRef.current?.scrollTo({ y: Math.max(0, favouritesYRef.current - 12), animated: true });
+        }, 250);
+        return () => clearTimeout(t);
+    }, [scrollTo, favourites.length, showAllFavourites]);
+
     const profileCompletion = computeProfileCompletion(userData);
     const initials = getInitials(userData);
     const displayName = userData?.full_name ?? userData?.username ?? 'User';
     const displayEmail = userData?.email ?? '';
+
+    const favouriteTrainers = favourites.map(mapApiTrainer);
+    const visibleFavourites = showAllFavourites ? favouriteTrainers : favouriteTrainers.slice(0, 5);
 
     if (isLoading && !userData) {
         return (
@@ -120,6 +145,7 @@ export default function ClientProfile() {
         <SafeAreaView className="flex-1 bg-background" edges={['left', 'right']}>
             <HeroGradient gradient={gradientColors.primary} fixed />
             <ScrollView
+                ref={(r) => { scrollRef.current = r; }}
                 contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 16 }}
                 showsVerticalScrollIndicator={false}
                 refreshControl={(
@@ -170,12 +196,8 @@ export default function ClientProfile() {
                                 {(userData?.profile_image_url ?? userData?.profile_image) ? (
                                     <ExpoImage
                                         source={{
-                                            uri: userData?.profile_image_url
-                                                ? clientService.getClientProfileImageUrl()
-                                                : userData!.profile_image!,
-                                            headers: userData?.profile_image_url
-                                                ? { Authorization: `Bearer ${authState.token ?? ''}` }
-                                                : undefined,
+                                            uri: clientService.getClientProfileImageUrl(),
+                                            headers: { Authorization: `Bearer ${authState.token ?? ''}` },
                                         }}
                                         style={{ width: 72, height: 72, borderRadius: radius.card }}
                                         contentFit="cover"
@@ -222,6 +244,11 @@ export default function ClientProfile() {
                             {/* User Info */}
                             <View style={{ flex: 1, marginLeft: 16 }}>
                                 <Text className="text-lead font-bold text-foreground">{displayName}</Text>
+                                {!!userData?.username && (
+                                    <Text className="text-xl font-bold text-black text-foreground-5 mt-0.5">
+                                        {userData.username}
+                                    </Text>
+                                )}
                                 <Text className="text-xs text-foreground-5 mt-0.5">{displayEmail}</Text>
                                 <View
                                     style={{
@@ -277,6 +304,56 @@ export default function ClientProfile() {
                                 />
                             </View>
                         </View>
+
+                        {/* Favourites (inline list) */}
+                        {favouriteTrainers.length > 0 && (
+                            <View
+                                className="mt-5 pt-5 border-t border-surface"
+                                onLayout={(e) => {
+                                    favouritesYRef.current = e.nativeEvent.layout.y;
+                                }}
+                            >
+                                <View className="flex-row items-center justify-between mb-3">
+                                    <Text style={{ fontSize: fontSize.section, fontWeight: '800', color: colors.textPrimary }}>
+                                        Favourites
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                                        {favouriteTrainers.length > 5 && (
+                                            <TouchableOpacity
+                                                onPress={() => setShowAllFavourites((v) => !v)}
+                                                activeOpacity={0.75}
+                                                style={{
+                                                    paddingHorizontal: 10,
+                                                    paddingVertical: 6,
+                                                    borderRadius: radius.full,
+                                                    backgroundColor: colors.surface,
+                                                    borderWidth: 1,
+                                                    borderColor: colors.surfaceBorder,
+                                                }}
+                                            >
+                                                <Text style={{ fontSize: fontSize.tag, fontWeight: '800', color: colors.primary }}>
+                                                    {showAllFavourites ? 'Show less' : 'Show more'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        )}
+
+                                        <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.textSubtle }}>
+                                            {`${favouriteTrainers.length}`}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={{ gap: 12 }}>
+                                    {visibleFavourites.map((t) => (
+                                        <TrainerCard
+                                            key={t.id}
+                                            trainer={t}
+                                            onPress={() => router.push({ pathname: '/(tabs)/client/trainerProfile', params: { id: t.id } } as never)}
+                                        />
+                                    ))}
+                                </View>
+                            </View>
+                        )}
                     </Animated.View>
 
                 </View>

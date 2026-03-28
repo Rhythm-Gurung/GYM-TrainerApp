@@ -42,6 +42,7 @@ export interface User {
   years_of_experience?: number;
   pricing_per_session?: string;
   session_type?: 'online' | 'offline' | 'both';
+  avg_rating?: number | string | null;
   id_proof_url?: string | null;
   verification_status?: 'pending' | 'verified' | 're_verification_required' | 'reverification_rejected';
   profile_completion?: number | null;

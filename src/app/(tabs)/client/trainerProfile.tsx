@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -182,6 +182,10 @@ export default function TrainerProfile() {
     // ── Favourite ──────────────────────────────────────────────────────────
     const [isFavorited, setIsFavorited] = useState<boolean | null>(null);
     const currentFavoriteState = isFavorited !== null ? isFavorited : (apiTrainer?.is_favourited ?? false);
+
+    useEffect(() => {
+        setIsFavorited(null);
+    }, [id]);
 
     const { mutate: toggleFav } = useApiMutation(
         () => clientService.toggleFavourite(id),

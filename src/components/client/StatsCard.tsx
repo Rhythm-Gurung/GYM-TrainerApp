@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Text, View } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
 
@@ -9,11 +9,15 @@ interface StatsCardProps {
     icon: keyof typeof Ionicons.glyphMap;
     iconColor?: string;
     iconBg?: string;
+    onPress?: () => void;
 }
 
-export default function StatsCard({ title, value, icon, iconColor, iconBg }: StatsCardProps) {
+export default function StatsCard({ title, value, icon, iconColor, iconBg, onPress }: StatsCardProps) {
+    const Container = onPress ? TouchableOpacity : View;
     return (
-        <View
+        <Container
+            onPress={onPress}
+            activeOpacity={onPress ? 0.8 : undefined}
             className="flex-1 bg-white rounded-2xl p-4 items-center border border-surface"
             style={shadow.card}
         >
@@ -36,6 +40,6 @@ export default function StatsCard({ title, value, icon, iconColor, iconBg }: Sta
             <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, fontWeight: '500', marginTop: 2 }}>
                 {title}
             </Text>
-        </View>
+        </Container>
     );
 }

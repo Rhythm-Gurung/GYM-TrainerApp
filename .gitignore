@@ -34,6 +34,16 @@ yarn-error.*
 .env
 .env*.local
 
+# local/temp artifacts
+tmpclaude-*
+lint_output.txt
+
+# local helper scripts (PowerShell)
+*.ps1
+
+# local docs (keep README.md and .github templates)
+docs.md
+
 # typescript
 *.tsbuildinfo
 

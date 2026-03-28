@@ -20,6 +20,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useApiQuery } from '@/api/hooks/useApiQuery';
+import { clientService } from '@/api/services/client.service';
 import ClientChip, { ClientRatingChip } from '@/components/client/ClientChip';
 import ClientDiscoverTopControls from '@/components/client/ClientDiscoverTopControls';
 import ImmersiveTrainerCard from '@/components/client/ImmersiveTrainerCard';
@@ -27,10 +29,8 @@ import { colors, fontSize } from '@/constants/theme';
 import { expertiseCategories, locations } from '@/data/mockData';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { buildMosaicRows } from '@/lib/mosaic';
-import { clientService } from '@/api/services/client.service';
-import { useApiQuery } from '@/api/hooks/useApiQuery';
-import { mapApiTrainer } from '@/types/clientTypes';
 import type { Trainer } from '@/types/clientTypes';
+import { mapApiTrainer } from '@/types/clientTypes';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -149,6 +149,47 @@ export default function ClientDiscover() {
         () => (apiTrainers ?? []).map(mapApiTrainer),
         [apiTrainers],
     );
+
+    const expertiseOptions = useMemo(() => {
+        const counts = trainers
+            .flatMap((t) => (t.expertise ?? []))
+            .map((cat) => String(cat).trim())
+            .filter(Boolean)
+            .reduce<Record<string, number>>((acc, cat) => {
+                acc[cat] = (acc[cat] ?? 0) + 1;
+                return acc;
+            }, {});
+
+        const fromApi = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat]) => cat);
+
+        const base = (fromApi.length > 0 ? fromApi : expertiseCategories);
+        const selected = filters.expertise.map((v) => String(v).trim()).filter(Boolean);
+
+        // Ensure selected values always show up as chips
+        return Array.from(new Set([...selected, ...base]));
+    }, [trainers, filters.expertise]);
+
+    const locationOptions = useMemo(() => {
+        const counts = trainers
+            .map((t) => String(t.location ?? '').trim())
+            .filter(Boolean)
+            .reduce<Record<string, number>>((acc, loc) => {
+                acc[loc] = (acc[loc] ?? 0) + 1;
+                return acc;
+            }, {});
+
+        const fromApi = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([loc]) => loc);
+
+        const base = (fromApi.length > 0 ? fromApi : locations);
+        const selected = filters.location ? [String(filters.location).trim()].filter(Boolean) : [];
+
+        // Ensure selected value always shows up as a chip
+        return Array.from(new Set([...selected, ...base]));
+    }, [trainers, filters.location]);
 
     useFocusEffect(
         useCallback(() => {
@@ -279,7 +320,7 @@ export default function ClientDiscover() {
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={{ gap: 6, paddingBottom: 14 }}
                     >
-                        {expertiseCategories.map((cat) => (
+                        {expertiseOptions.map((cat) => (
                             <ClientChip
                                 key={cat}
                                 label={cat}
@@ -299,7 +340,7 @@ export default function ClientDiscover() {
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={{ gap: 6, paddingBottom: 14 }}
                     >
-                        {locations.map((loc) => (
+                        {locationOptions.map((loc) => (
                             <ClientChip
                                 key={loc}
                                 label={loc}

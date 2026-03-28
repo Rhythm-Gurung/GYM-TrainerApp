@@ -139,6 +139,10 @@ export default function TrainerTabLayout() {
                 name="notifications"
                 options={{ href: null, headerShown: false }}
             />
+            <Tabs.Screen
+                name="analysis"
+                options={{ href: null, headerShown: false }}
+            />
         </Tabs>
     );
 }

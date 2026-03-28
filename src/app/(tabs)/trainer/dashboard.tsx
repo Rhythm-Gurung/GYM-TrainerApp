@@ -17,24 +17,19 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useApiQuery } from '@/api/hooks/useApiQuery';
+import { useTrainerBookings, useTrainerProfile } from '@/api/hooks/useTrainerBookings';
+import { useTrainerEarnings } from '@/api/hooks/useTrainerEarnings';
+import { notificationService } from '@/api/services/notification.service';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerSessionCard from '@/components/trainer/TrainerSessionCard';
 import HeroGradient from '@/components/ui/HeroGradient';
+import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
 import {
     QUICK_ACTION_CONFIGS,
     STAT_CARD_CONFIGS,
 } from '@/constants/trainerDashboard.constants';
-import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { showErrorToast } from '@/lib';
-import {
-    fetchMockTrainerDashboard,
-    MOCK_AVG_RATING,
-    MOCK_TOTAL_SESSIONS,
-    MOCK_UNREAD_NOTIFICATIONS,
-} from '@/mockData/trainerDashboard.mock';
-import type { EarningsSummary } from '@/types/clientTypes';
-import type { TrainerSession } from '@/types/trainerTypes';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -56,17 +51,25 @@ export default function TrainerDashboard() {
     const insets = useSafeAreaInsets();
     const greeting = getGreeting();
 
-    const [sessions, setSessions] = useState<TrainerSession[]>([]);
-    const [earnings, setEarnings] = useState<EarningsSummary | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data: earningsData, isLoading: earningsLoading, refetch: refetchEarnings } = useTrainerEarnings();
+    const { data: bookingsData, isLoading: bookingsLoading, refetch: refetchBookings } = useTrainerBookings();
+    const { data: profileStats, isLoading: profileLoading, refetch: refetchProfile } = useTrainerProfile();
+
+    const { data: notificationStats, refetch: refetchNotificationStats } = useApiQuery(
+        'notifications:stats',
+        () => notificationService.getStats(),
+        { staleTime: 30 * 1000, showErrorToast: false },
+    );
+
+    const unreadCount = notificationStats?.unreadCount ?? 0;
+
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const statsY = useSharedValue(SLIDE);
     const actionsY = useSharedValue(SLIDE);
-    const commissionY = useSharedValue(SLIDE);
     const sessionsY = useSharedValue(SLIDE);
 
-    const anim = useRef({ statsY, actionsY, commissionY, sessionsY });
+    const anim = useRef({ statsY, actionsY, sessionsY });
 
     useFocusEffect(
         useCallback(() => {
@@ -76,51 +79,62 @@ export default function TrainerDashboard() {
             v.statsY.value = withTiming(0, ease);
             v.actionsY.value = SLIDE;
             v.actionsY.value = withDelay(80, withTiming(0, ease));
-            v.commissionY.value = SLIDE;
-            v.commissionY.value = withDelay(160, withTiming(0, ease));
             v.sessionsY.value = SLIDE;
-            v.sessionsY.value = withDelay(240, withTiming(0, ease));
+            v.sessionsY.value = withDelay(160, withTiming(0, ease));
         }, []),
     );
 
-    const fetchData = useCallback(async () => {
-        const { sessions: s, earnings: e } = await fetchMockTrainerDashboard();
-        setSessions(s);
-        setEarnings(e);
-    }, []);
-
     useFocusEffect(
         useCallback(() => {
-            fetchData()
-                .catch(() => showErrorToast('Failed to load dashboard', 'Error'))
-                .finally(() => setIsLoading(false));
-        }, [fetchData]),
+            refetchEarnings().catch(() => { });
+            refetchBookings().catch(() => { });
+            refetchProfile().catch(() => { });
+            refetchNotificationStats().catch(() => { });
+        }, [refetchEarnings, refetchBookings, refetchProfile, refetchNotificationStats]),
     );
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
-        await fetchData().catch(() => showErrorToast('Failed to load dashboard', 'Error'));
+        await Promise.all([refetchEarnings(), refetchBookings(), refetchProfile(), refetchNotificationStats()]);
         setIsRefreshing(false);
-    }, [fetchData]);
+    }, [refetchEarnings, refetchBookings, refetchProfile, refetchNotificationStats]);
 
     const statsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: statsY.value }] }));
     const actionsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: actionsY.value }] }));
-    const commissionStyle = useAnimatedStyle(() => ({ transform: [{ translateY: commissionY.value }] }));
     const sessionsStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sessionsY.value }] }));
 
-    const pendingCount = sessions.filter((s) => s.status === 'pending').length;
-    const upcomingSessions = sessions.filter((s) => s.status === 'confirmed').slice(0, 3);
+    const isLoading = earningsLoading || bookingsLoading || profileLoading;
+
+    const summary = earningsData?.summary ?? null;
+    const sessions = bookingsData ?? [];
+
+    const completedSessions = sessions.filter((s) => s.status === 'completed').length;
+    const acceptedCount = sessions.filter((s) => s.status === 'accepted').length;
+    const uniqueClientsCount = new Set(
+        sessions.filter((s) => s.status === 'confirmed').map((s) => s.clientId),
+    ).size;
+    const now = new Date();
+    const todayStr = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const currentTimeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+    const upcomingSessions = sessions
+        .filter((s) => {
+            if (s.status !== 'confirmed') return false;
+            if (s.date > todayStr) return true;
+            if (s.date === todayStr) return s.startTime >= currentTimeStr;
+            return false;
+        })
+        .sort((a, b) => `${a.date}T${a.startTime}`.localeCompare(`${b.date}T${b.startTime}`))
+        .slice(0, 3);
+
+    const pendingAmount = summary !== null ? summary.pending_transfer_rs + summary.on_hold_rs : null;
 
     const statValues: Record<string, string> = {
-        earnings: earnings ? `₹${earnings.totalEarnings.toLocaleString('en-IN')}` : '—',
-        pending: earnings ? `₹${earnings.pendingPayouts.toLocaleString('en-IN')}` : '—',
-        sessions: String(MOCK_TOTAL_SESSIONS),
-        rating: String(MOCK_AVG_RATING),
+        earnings: summary ? `₹${summary.total_earned_rs.toLocaleString('en-IN')}` : '—',
+        pending: pendingAmount !== null ? `₹${pendingAmount.toLocaleString('en-IN')}` : '—',
+        sessions: bookingsData ? String(completedSessions) : '—',
+        rating: profileStats?.avg_rating != null ? profileStats.avg_rating.toFixed(1) : '—',
     };
-
-    const commissionPct = earnings
-        ? Math.round((earnings.commissionPaid / earnings.totalEarnings) * 100)
-        : 0;
 
     if (isLoading) {
         return (
@@ -172,7 +186,7 @@ export default function TrainerDashboard() {
                         activeOpacity={0.7}
                     >
                         <Ionicons name="notifications-outline" size={20} color={colors.white} />
-                        {MOCK_UNREAD_NOTIFICATIONS > 0 && (
+                        {unreadCount > 0 && (
                             <View
                                 style={{
                                     position: 'absolute',
@@ -190,7 +204,7 @@ export default function TrainerDashboard() {
                                 }}
                             >
                                 <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
-                                    {MOCK_UNREAD_NOTIFICATIONS}
+                                    {unreadCount}
                                 </Text>
                             </View>
                         )}
@@ -220,8 +234,9 @@ export default function TrainerDashboard() {
                             <TouchableOpacity
                                 key={action.id}
                                 onPress={() => {
-                                    if (action.id === 'accept') router.push({ pathname: '/trainer/bookings', params: { tab: 'pending' } } as never);
-                                    if (action.id === 'analytics') router.push('/trainer/earnings' as never);
+                                    if (action.id === 'accept') router.push({ pathname: '/trainer/bookings', params: { tab: 'accepted' } } as never);
+                                    if (action.id === 'clients') router.push({ pathname: '/trainer/bookings', params: { tab: 'completed' } } as never);
+                                    if (action.id === 'analytics') router.push('/trainer/analysis' as never);
                                 }}
                                 activeOpacity={0.7}
                                 style={{
@@ -249,7 +264,7 @@ export default function TrainerDashboard() {
                                     >
                                         <Ionicons name={action.icon} size={20} color={action.iconColor} />
                                     </View>
-                                    {action.id === 'accept' && pendingCount > 0 && (
+                                    {action.id === 'accept' && acceptedCount > 0 && (
                                         <View
                                             style={{
                                                 position: 'absolute',
@@ -265,7 +280,27 @@ export default function TrainerDashboard() {
                                             }}
                                         >
                                             <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
-                                                {pendingCount}
+                                                {acceptedCount}
+                                            </Text>
+                                        </View>
+                                    )}
+                                    {action.id === 'clients' && uniqueClientsCount > 0 && (
+                                        <View
+                                            style={{
+                                                position: 'absolute',
+                                                top: -4,
+                                                right: -6,
+                                                minWidth: 18,
+                                                height: 18,
+                                                borderRadius: 9,
+                                                backgroundColor: colors.action,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                paddingHorizontal: 4,
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                                {uniqueClientsCount}
                                             </Text>
                                         </View>
                                     )}
@@ -275,61 +310,6 @@ export default function TrainerDashboard() {
                                 </Text>
                             </TouchableOpacity>
                         ))}
-                    </Animated.View>
-
-                    {/* Commission */}
-                    <Animated.View
-                        style={[
-                            {
-                                backgroundColor: colors.white,
-                                borderRadius: radius.card,
-                                padding: 20,
-                                borderWidth: 1,
-                                borderColor: colors.surfaceBorder,
-                                ...shadow.cardSubtle,
-                            },
-                            commissionStyle,
-                        ]}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                            <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                                Commission
-                            </Text>
-                            <View
-                                style={{
-                                    backgroundColor: colors.surface,
-                                    borderRadius: radius.full,
-                                    paddingHorizontal: 10,
-                                    paddingVertical: 2,
-                                }}
-                            >
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textMuted }}>
-                                    {`${earnings?.commissionRate ?? 0}%`}
-                                </Text>
-                            </View>
-                        </View>
-
-                        <View
-                            style={{
-                                height: 10,
-                                backgroundColor: colors.surface,
-                                borderRadius: radius.full,
-                                overflow: 'hidden',
-                            }}
-                        >
-                            <View
-                                style={{
-                                    height: '100%',
-                                    width: `${commissionPct}%`,
-                                    backgroundColor: colors.trainerPrimary,
-                                    borderRadius: radius.full,
-                                }}
-                            />
-                        </View>
-
-                        <Text style={{ fontSize: fontSize.caption, color: colors.textSubtle, marginTop: 8 }}>
-                            {`₹${earnings?.commissionPaid.toLocaleString('en-IN') ?? 0} paid`}
-                        </Text>
                     </Animated.View>
 
                     {/* Upcoming Sessions */}
@@ -347,7 +327,11 @@ export default function TrainerDashboard() {
 
                         {upcomingSessions.length > 0 ? (
                             upcomingSessions.map((session) => (
-                                <TrainerSessionCard key={session.id} session={session} />
+                                <TrainerSessionCard
+                                    key={session.id}
+                                    session={session}
+                                    onPress={() => router.push({ pathname: '/trainer/bookings', params: { tab: 'confirmed' } } as never)}
+                                />
                             ))
                         ) : (
                             <View style={{ alignItems: 'center', paddingVertical: 32 }}>

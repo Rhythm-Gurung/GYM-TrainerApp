@@ -23,7 +23,9 @@ export const API_CONFIG = {
             REGISTER: '/api/system/auth/register/',
             UPDATE_PROFILE: '/api/trainer/update-profile/',
             UPDATE_PROFILE_DETAILS: '/api/system/trainer/update-profile/',
-            GET_PROFILE: '/api/trainer/profile/',
+            // NOTE: Backend currently does not expose /api/system/trainer/profile/.
+            // Use WHOAMI for the logged-in trainer's profile info/stats.
+            GET_PROFILE: '/api/system/auth/whoami/',
             ID_PROOF: '/api/system/trainer/id-proof/',
             PROFILE_IMAGE: '/api/system/trainer/profile-image/',
             CERTIFICATIONS: '/api/system/trainer/certifications/',
@@ -83,6 +85,10 @@ export const API_CONFIG = {
             // GET  /api/bookings/{id}/         → single booking detail
             // POST /api/bookings/{id}/cancel/  → cancel a booking (body: { reason? })
             BOOKINGS: '/api/bookings/',
+
+            // ── Bookings stats (global) ─────────────────────────────────────────
+            // GET /api/bookings/stats/ → aggregate counts across the whole system
+            BOOKINGS_STATS: '/api/bookings/stats/',
         },
         PAYMENT: {
             // POST /api/payment/initiate/         → body: { booking_id } → returns { pidx, payment_url, payment_id }
@@ -94,6 +100,12 @@ export const API_CONFIG = {
         },
         TOKEN: {
             REFRESH: '/api/token/refresh/',
+        },
+
+        NOTIFICATIONS: {
+            LIST: '/api/notifications/',
+            STATS: '/api/notifications/stats/',
+            MARK_ALL_READ: '/api/notifications/mark-all-read/',
         },
     },
 } as const;

@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import {
     ScrollView,
     Text,
@@ -16,15 +16,16 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import HeroGradient from '@/components/ui/HeroGradient';
+import { useApiQuery } from '@/api/hooks/useApiQuery';
+import { clientService } from '@/api/services/client.service';
+import { notificationService } from '@/api/services/notification.service';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerCard from '@/components/client/TrainerCard';
+import HeroGradient from '@/components/ui/HeroGradient';
 import { colors, fontSize, gradientColors, radius } from '@/constants/theme';
-import { expertiseCategories, unreadNotificationCount } from '@/data/mockData';
-import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { clientService } from '@/api/services/client.service';
-import { useApiQuery } from '@/api/hooks/useApiQuery';
 import { useAuth } from '@/contexts/auth';
+import { expertiseCategories } from '@/data/mockData';
+import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { resolveImageUrl } from '@/lib';
 import { mapApiTrainer } from '@/types/clientTypes';
 
@@ -34,8 +35,6 @@ function getGreeting(): string {
     if (h < 17) return 'Good Afternoon';
     return 'Good Evening';
 }
-
-const categories = expertiseCategories.slice(0, 8);
 
 // Positive translateY = element starts BELOW its final position → slides UP
 const SLIDE = 40;
@@ -54,9 +53,57 @@ export default function ClientHome() {
         { staleTime: 2 * 60 * 1000 },
     );
 
-    const allTrainers = (apiTrainers ?? []).map(mapApiTrainer);
-    const topTrainers = allTrainers.filter((t) => t.rating >= 4.8).slice(0, 3);
-    const recentlyViewed = allTrainers.slice(0, 4);
+    const { data: apiFavourites } = useApiQuery(
+        'client:favourites',
+        () => clientService.getFavourites(),
+        { staleTime: 60 * 1000 },
+    );
+
+    const { data: bookingStats } = useApiQuery(
+        'bookings:stats',
+        () => clientService.getBookingsStats(),
+        { staleTime: 60 * 1000, showErrorToast: false },
+    );
+
+    const { data: notificationStats, refetch: refetchNotificationStats } = useApiQuery(
+        'notifications:stats',
+        () => notificationService.getStats(),
+        { staleTime: 30 * 1000, showErrorToast: false },
+    );
+
+    const unreadCount = notificationStats?.unreadCount ?? 0;
+
+    const allTrainers = useMemo(
+        () => (apiTrainers ?? []).map(mapApiTrainer),
+        [apiTrainers],
+    );
+
+    const browseCategories = useMemo(() => {
+        const counts = allTrainers
+            .flatMap((t) => (t.expertise ?? []))
+            .map((cat) => String(cat).trim())
+            .filter(Boolean)
+            .reduce<Record<string, number>>((acc, cat) => {
+                acc[cat] = (acc[cat] ?? 0) + 1;
+                return acc;
+            }, {});
+
+        const fromApi = Object.entries(counts)
+            .sort((a, b) => b[1] - a[1])
+            .map(([cat]) => cat);
+
+        const list = fromApi.length > 0 ? fromApi : expertiseCategories;
+        return list.slice(0, 8);
+    }, [allTrainers]);
+
+    const topTrainers = useMemo(
+        () => allTrainers.filter((t) => t.rating >= 4.8).slice(0, 3),
+        [allTrainers],
+    );
+    const recentlyViewed = useMemo(
+        () => allTrainers.slice(0, 4),
+        [allTrainers],
+    );
 
     const statsY = useSharedValue(SLIDE);
     const catsY = useSharedValue(SLIDE);
@@ -81,7 +128,9 @@ export default function ClientHome() {
 
             v.recentY.value = SLIDE;
             v.recentY.value = withDelay(240, withTiming(0, ease));
-        }, []),
+
+            refetchNotificationStats();
+        }, [refetchNotificationStats]),
     );
 
     const statsStyle = useAnimatedStyle(() => ({
@@ -130,7 +179,7 @@ export default function ClientHome() {
                             activeOpacity={0.7}
                         >
                             <Ionicons name="notifications-outline" size={20} color={colors.white} />
-                            {unreadNotificationCount > 0 && (
+                            {unreadCount > 0 && (
                                 <View
                                     style={{
                                         position: 'absolute',
@@ -148,7 +197,7 @@ export default function ClientHome() {
                                     }}
                                 >
                                     <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
-                                        {unreadNotificationCount}
+                                        {unreadCount}
                                     </Text>
                                 </View>
                             )}
@@ -181,9 +230,23 @@ export default function ClientHome() {
 
                     {/* Quick Stats */}
                     <Animated.View className="flex-row" style={[{ gap: 10, overflow: 'visible' }, statsStyle]}>
-                        <StatsCard title="Trainers" value="500+" icon="trending-up-outline" />
-                        <StatsCard title="Sessions" value="2.4K" icon="time-outline" />
-                        <StatsCard title="Saved" value="12" icon="heart-outline" />
+                        <StatsCard
+                            title="Trainers"
+                            value={String(apiTrainers?.length ?? 0)}
+                            icon="trending-up-outline"
+                            onPress={() => router.push('/client/discover' as never)}
+                        />
+                        <StatsCard
+                            title="Sessions"
+                            value={bookingStats ? String(bookingStats.totalCount) : '—'}
+                            icon="time-outline"
+                        />
+                        <StatsCard
+                            title="Saved"
+                            value={String(apiFavourites?.length ?? 0)}
+                            icon="heart-outline"
+                            onPress={() => router.push('/(tabs)/client/profile?scrollTo=favourites' as never)}
+                        />
                     </Animated.View>
 
                     {/* Browse Categories */}
@@ -199,7 +262,7 @@ export default function ClientHome() {
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={{ gap: 8, paddingBottom: 4 }}
                         >
-                            {categories.map((cat) => (
+                            {browseCategories.map((cat) => (
                                 <TouchableOpacity
                                     key={cat}
                                     onPress={() => router.push(`/client/discover?expertise=${cat}` as never)}

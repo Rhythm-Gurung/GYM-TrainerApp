@@ -5,9 +5,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
+import { colors, fontSize, radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { resolveImageUrl } from '@/lib';
-import { colors, fontSize, radius } from '@/constants/theme';
 import type { Trainer } from '@/types/clientTypes';
 
 const CARD_STAGGER_MS = 60;
@@ -85,46 +85,52 @@ export default function ImmersiveTrainerCard({ trainer, index, animKey, onPress 
                     style={{ position: 'absolute', inset: 0 }}
                 />
 
-                <TouchableOpacity
-                    onPress={(e) => {
-                        e.stopPropagation();
-                        setLiked((prev) => !prev);
-                    }}
-                    activeOpacity={0.8}
+                <View
                     style={{
                         position: 'absolute',
                         top: 12,
+                        left: 12,
                         right: 12,
-                        width: 34,
-                        height: 34,
-                        borderRadius: radius.full,
-                        backgroundColor: colors.white18,
+                        flexDirection: 'row',
                         alignItems: 'center',
-                        justifyContent: 'center',
                     }}
                 >
-                    <Ionicons name={liked ? 'heart' : 'heart-outline'} size={16} color={liked ? colors.heartActive : colors.white} />
-                </TouchableOpacity>
+                    {trainer.isVerified ? (
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4,
+                                borderRadius: radius.full,
+                                backgroundColor: colors.primary,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                            }}
+                        >
+                            <Ionicons name="checkmark-circle" size={12} color={colors.white} />
+                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>Verified</Text>
+                        </View>
+                    ) : null}
 
-                {trainer.isVerified && (
-                    <View
+                    <TouchableOpacity
+                        onPress={(e) => {
+                            e.stopPropagation();
+                            setLiked((prev) => !prev);
+                        }}
+                        activeOpacity={0.8}
                         style={{
-                            position: 'absolute',
-                            top: 12,
-                            left: 12,
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 4,
+                            marginLeft: 'auto',
+                            width: 34,
+                            height: 34,
                             borderRadius: radius.full,
-                            backgroundColor: colors.primary,
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
+                            backgroundColor: colors.white18,
+                            alignItems: 'center',
+                            justifyContent: 'center',
                         }}
                     >
-                        <Ionicons name="checkmark-circle" size={12} color={colors.white} />
-                        <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>Verified</Text>
-                    </View>
-                )}
+                        <Ionicons name={liked ? 'heart' : 'heart-outline'} size={16} color={liked ? colors.heartActive : colors.white} />
+                    </TouchableOpacity>
+                </View>
 
                 <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, padding: 12, gap: 6 }}>
                     <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', gap: 8 }}>

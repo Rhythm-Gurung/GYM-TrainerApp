@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
-import type { SharedValue } from 'react-native-reanimated';
+import Animated, { FadeInLeft } from 'react-native-reanimated';
 
 import { colors, fontSize, radius } from '@/constants/theme';
 import type { AppNotification } from '@/types/clientTypes';
@@ -31,24 +30,38 @@ const TYPE_ICON_COLOR: Record<NotificationType, string> = {
 
 export interface NotificationCardProps {
     notification: AppNotification;
-    animX: SharedValue<number>;
+    enteringDelayMs?: number;
+    enteringDurationMs?: number;
     /** Unread state colors — defaults to client (primary) palette */
     unreadBg?: string;
     unreadBorder?: string;
     unreadDot?: string;
 }
 
-export default function NotificationCard({ notification, animX, unreadBg, unreadBorder, unreadDot }: NotificationCardProps) {
-    const style = useAnimatedStyle(() => ({
-        transform: [{ translateX: animX.value }],
-    }));
+export default function NotificationCard({
+    notification,
+    enteringDelayMs = 0,
+    enteringDurationMs = 280,
+    unreadBg,
+    unreadBorder,
+    unreadDot,
+}: NotificationCardProps) {
 
-    const formattedDate = new Date(notification.createdAt).toLocaleDateString('en-IN', {
-        day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
-    });
+    const dateObj = new Date(notification.createdAt);
+    const formattedDate = Number.isNaN(dateObj.getTime())
+        ? String(notification.createdAt)
+        : dateObj.toLocaleString('en-IN', {
+            day: 'numeric',
+            month: 'short',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
 
     return (
-        <Animated.View style={[style, { marginBottom: 8, overflow: 'visible' }]}>
+        <Animated.View
+            entering={FadeInLeft.duration(enteringDurationMs).delay(enteringDelayMs)}
+            style={{ marginBottom: 8, overflow: 'visible' }}
+        >
             <View
                 style={{
                     flexDirection: 'row',

@@ -25,6 +25,7 @@ import { clientService } from '@/api/services/client.service';
 import ClientChip, { ClientRatingChip } from '@/components/client/ClientChip';
 import ClientDiscoverTopControls from '@/components/client/ClientDiscoverTopControls';
 import ImmersiveTrainerCard from '@/components/client/ImmersiveTrainerCard';
+import ChatFab from '@/components/ui/ChatFab';
 import { colors, fontSize } from '@/constants/theme';
 import { expertiseCategories, locations } from '@/data/mockData';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
@@ -144,6 +145,12 @@ export default function ClientDiscover() {
         () => clientService.getTrainers(),
         { staleTime: 2 * 60 * 1000 },
     );
+
+    const fabBottom = tabBarHeight + 16;
+
+    const handleOpenChat = useCallback(() => {
+        router.push('/(tabs)/client/chatDetail' as never);
+    }, [router]);
 
     const trainers: Trainer[] = useMemo(
         () => (apiTrainers ?? []).map(mapApiTrainer),
@@ -387,6 +394,14 @@ export default function ClientDiscover() {
                     <ActivityIndicator size="large" color={colors.primary} />
                 </View>
             )}
+
+            {/* ── Floating Chat Button ── */}
+            <ChatFab
+                onPress={handleOpenChat}
+                variant="ai"
+                bottom={fabBottom}
+                accessibilityLabel="Chat with SETu AI"
+            />
 
             {/* ── Grid results ── */}
             {!isLoading && (

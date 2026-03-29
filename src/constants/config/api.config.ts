@@ -107,5 +107,12 @@ export const API_CONFIG = {
             STATS: '/api/notifications/stats/',
             MARK_ALL_READ: '/api/notifications/mark-all-read/',
         },
+
+        CHAT: {
+            CLIENT_SIMPLE: '/api/chat/client/',
+            CLIENT_HISTORY: '/api/chat/client/history/',
+            TRAINER_SIMPLE: '/api/chat/trainer/',
+            TRAINER_HISTORY: '/api/chat/trainer/history/',
+        },
     },
 } as const;

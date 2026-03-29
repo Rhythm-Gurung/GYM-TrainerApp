@@ -143,6 +143,15 @@ export default function TrainerTabLayout() {
                 name="analysis"
                 options={{ href: null, headerShown: false }}
             />
+            {/* Chat — opened via floating button. Tab bar hidden. */}
+            <Tabs.Screen
+                name="chat"
+                options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' } }}
+            />
+            <Tabs.Screen
+                name="chatDetail"
+                options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' } }}
+            />
         </Tabs>
     );
 }

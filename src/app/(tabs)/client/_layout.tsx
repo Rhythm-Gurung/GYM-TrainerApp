@@ -148,6 +148,23 @@ export default function ClientTabLayout() {
                     tabBarStyle: { display: 'none' },
                 }}
             />
+            {/* Chat — opened via floating button. Tab bar hidden. */}
+            <Tabs.Screen
+                name="chat"
+                options={{
+                    href: null,
+                    headerShown: false,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
+            <Tabs.Screen
+                name="chatDetail"
+                options={{
+                    href: null,
+                    headerShown: false,
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
         </Tabs>
     );
 }

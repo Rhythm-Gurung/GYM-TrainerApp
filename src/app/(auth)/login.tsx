@@ -6,6 +6,7 @@ import { Link, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import {
+    Image,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
@@ -13,6 +14,8 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
+
+import setuLogo from '../../../assets/images/SETu.png';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
@@ -160,24 +163,14 @@ export default function LoginPage() {
                         }}
                     >
                         {/* App icon badge */}
-                        <View
-                            style={{
-                                width: 64,
-                                height: 64,
-                                borderRadius: 20,
-                                backgroundColor: colors.white18,
-                                borderWidth: 1.5,
-                                borderColor: 'rgba(255,255,255,0.30)',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginBottom: 14,
-                            }}
-                        >
-                            <Ionicons name="barbell-outline" size={30} color={colors.white} />
-                        </View>
+                        <Image
+                            source={setuLogo}
+                            style={{ width: 120, height: 120, marginBottom: -16 }}
+                            resizeMode="contain"
+                        />
 
                         <Text style={{ fontSize: fontSize.pageTitle, fontWeight: '800', color: colors.white, letterSpacing: -0.5 }}>
-                            GymJam
+                            SETu
                         </Text>
                         <Text style={{ fontSize: fontSize.body, color: colors.white65, marginTop: 4, fontWeight: '500' }}>
                             Train smarter. Live stronger.

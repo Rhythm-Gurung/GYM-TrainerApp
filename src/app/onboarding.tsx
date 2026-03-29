@@ -17,8 +17,8 @@ import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-nat
 import { SafeAreaView } from "react-native-safe-area-context";
 // import iconImage from '../../assets/images/icon.webp';
 // import logoImage from '../../assets/images/logo.webp';
-import logoImage from '../../assets/images/gym.png';
-import iconImage from '../../assets/images/gym1.png';
+import logoImage from '../../assets/images/SETuFull.png';
+import iconImage from '../../assets/images/SETu.png';
 
 
 
@@ -113,8 +113,8 @@ function OnboardingScreen() {
                 <Image
                     source={iconImage}
                     style={{
-                        width: isTablet ? wp('12%') : wp('18%'),
-                        height: isTablet ? wp('12%') : wp('18%'),
+                        width: isTablet ? wp('20%') : wp('26%'),
+                        height: isTablet ? wp('20%') : wp('26%'),
                     }}
                     resizeMode="contain"
                 />

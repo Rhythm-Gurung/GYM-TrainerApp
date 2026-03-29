@@ -21,6 +21,7 @@ import { clientService } from '@/api/services/client.service';
 import { notificationService } from '@/api/services/notification.service';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerCard from '@/components/client/TrainerCard';
+import ChatFab from '@/components/ui/ChatFab';
 import HeroGradient from '@/components/ui/HeroGradient';
 import { colors, fontSize, gradientColors, radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
@@ -145,6 +146,12 @@ export default function ClientHome() {
     const recentStyle = useAnimatedStyle(() => ({
         transform: [{ translateY: recentY.value }],
     }));
+
+    const fabBottom = tabBarHeight + 16;
+
+    const handleOpenChat = useCallback(() => {
+        router.push('/(tabs)/client/chatDetail' as never);
+    }, [router]);
 
     return (
         <SafeAreaView className="flex-1 bg-background" edges={['left', 'right']}>
@@ -372,6 +379,13 @@ export default function ClientHome() {
                     </Animated.View>
                 </View>
             </ScrollView>
+
+            <ChatFab
+                onPress={handleOpenChat}
+                variant="ai"
+                bottom={fabBottom}
+                accessibilityLabel="Chat with SETu AI"
+            />
         </SafeAreaView>
     );
 }

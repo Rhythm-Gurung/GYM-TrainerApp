@@ -14,7 +14,7 @@ import {
 } from 'react-native-responsive-screen';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import iconImage from '@/../assets/images/gym1.png';
+import iconImage from '@/../assets/images/SETu.png';
 
 type UserRole = 'client' | 'trainer' | null;
 
@@ -56,8 +56,8 @@ export default function RoleSelectionScreen() {
             <Image
               source={iconImage}
               style={{
-                width: isTablet ? wp('12%') : wp('16%'),
-                height: isTablet ? wp('12%') : wp('16%'),
+                width: isTablet ? wp('20%') : wp('26%'),
+                height: isTablet ? wp('20%') : wp('26%'),
               }}
               resizeMode="contain"
             />

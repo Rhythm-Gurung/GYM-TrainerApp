@@ -1,27 +1,86 @@
+import logoImage from '../../assets/images/SETuFull.png';
+
 import { useOnboarding } from '@/hooks/useOnboarding';
-import { Redirect } from 'expo-router';
-import React from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { colors } from '@/constants/theme';
+import { useRouter } from 'expo-router';
+import { useEffect } from 'react';
+import { Image, View } from 'react-native';
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+    withDelay,
+    withTiming,
+} from 'react-native-reanimated';
+
+const MIN_SPLASH_MS = 1800;
 
 export default function Index() {
-    // Get onboarding status from unboarding hook
+    'use no memo';
+
     const { isOnboardingCompleted, isLoading } = useOnboarding();
+    const router = useRouter();
 
-    // Show loading indicator while checking onboarding status from AsyncStorage
-    if (isLoading) {
-        return (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-                <ActivityIndicator size="large" color="#73C2FB" />
+    const opacity = useSharedValue(0);
+    const scale = useSharedValue(0.82);
+    const screenOpacity = useSharedValue(1);
+
+    const logoStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+        transform: [{ scale: scale.value }],
+    }));
+
+    const screenStyle = useAnimatedStyle(() => ({
+        opacity: screenOpacity.value,
+    }));
+
+    useEffect(() => {
+        opacity.value = withTiming(1, { duration: 500 });
+        scale.value = withTiming(1, { duration: 500 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    useEffect(() => {
+        if (isLoading) return;
+
+        const navigate = () => {
+            if (isOnboardingCompleted) {
+                router.replace('/(auth)/login');
+            } else {
+                router.replace('/onboarding');
+            }
+        };
+
+        screenOpacity.value = withDelay(MIN_SPLASH_MS, withTiming(0, { duration: 350 }));
+        setTimeout(navigate, MIN_SPLASH_MS + 350);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isLoading, isOnboardingCompleted]);
+
+    return (
+        <Animated.View
+            style={[
+                { flex: 1, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
+                screenStyle,
+            ]}
+        >
+            <Animated.View style={[{ alignItems: 'center' }, logoStyle]}>
+                <Image
+                    source={logoImage}
+                    style={{ width: 180, height: 180 }}
+                    resizeMode="contain"
+                />
+            </Animated.View>
+            <View
+                style={{
+                    position: 'absolute',
+                    bottom: 52,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 5,
+                }}
+            >
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#F97316' }} />
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#FBAD3A' }} />
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: '#F97316', opacity: 0.5 }} />
             </View>
-        );
-    }
-
-    // If user has completed onboarding, redirect to login screen
-    if (isOnboardingCompleted) {
-        return <Redirect href="/(auth)/login" />;
-    }
-
-    // If user hasn't completed onboarding, show onboarding screens
-    return <Redirect href="/onboarding" />;
+        </Animated.View>
+    );
 }

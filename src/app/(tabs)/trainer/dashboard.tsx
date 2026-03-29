@@ -23,6 +23,7 @@ import { useTrainerEarnings } from '@/api/hooks/useTrainerEarnings';
 import { notificationService } from '@/api/services/notification.service';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerSessionCard from '@/components/trainer/TrainerSessionCard';
+import ChatFab from '@/components/ui/ChatFab';
 import HeroGradient from '@/components/ui/HeroGradient';
 import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
 import {
@@ -62,6 +63,11 @@ export default function TrainerDashboard() {
     );
 
     const unreadCount = notificationStats?.unreadCount ?? 0;
+    const fabBottom = tabBarHeight + 16;
+
+    const handleOpenChat = useCallback(() => {
+        router.push('/(tabs)/trainer/chatDetail' as never);
+    }, [router]);
 
     const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -345,6 +351,14 @@ export default function TrainerDashboard() {
 
                 </View>
             </ScrollView>
+
+            <ChatFab
+                onPress={handleOpenChat}
+                variant="trainer"
+                iconName="sparkles"
+                bottom={fabBottom}
+                accessibilityLabel="Chat with SETu AI"
+            />
         </SafeAreaView>
     );
 }

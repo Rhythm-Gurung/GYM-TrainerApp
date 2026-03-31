@@ -201,6 +201,31 @@ export interface PaymentStatusResponse {
     created_at: string;
 }
 
+export interface BulkPaymentInitiateRequest {
+    bookingIds: string[];
+    idempotencyKey?: string;
+}
+
+export interface BulkPaymentInitiateResponse {
+    payment_group_id: string;
+    payment_url: string;
+    pidx?: string;
+    amount?: number;
+    currency?: string;
+    expires_at?: string;
+}
+
+export interface BulkPaymentBookingStatus {
+    bookingId: string;
+    status: BookingStatus | PaymentStatusValue | string;
+}
+
+export interface BulkPaymentStatusResponse {
+    payment_group_id: string;
+    status: PaymentStatusValue | string;
+    bookings: BulkPaymentBookingStatus[];
+}
+
 export interface Review {
     id: string;
     bookingId: string;
@@ -254,12 +279,20 @@ export interface ApiBooking {
     trainer?: {
         id: number;
         full_name: string;
+        username?: string | null;
+        first_name?: string | null;
+        last_name?: string | null;
+        email?: string | null;
         profile_image_url?: string | null;
         image_url?: string | null;
         avatar_url?: string | null;
     };
     trainer_id?: number;
     trainer_name?: string;
+    trainer_username?: string | null;
+    trainer_first_name?: string | null;
+    trainer_last_name?: string | null;
+    trainer_email?: string | null;
     trainer_profile_image_url?: string | null;
     trainer_avatar_url?: string | null;
     date: string;
@@ -276,8 +309,30 @@ const VALID_BOOKING_STATUSES: BookingStatus[] = [
 ];
 
 export function mapApiBooking(b: ApiBooking): Booking {
+    const pickNonEmpty = (...values: Array<string | null | undefined>) => (
+        values
+            .map((value) => (typeof value === 'string' ? value.trim() : ''))
+            .find(Boolean)
+        || ''
+    );
+    const fullFromParts = (first?: string | null, last?: string | null) => {
+        const firstPart = pickNonEmpty(first);
+        const lastPart = pickNonEmpty(last);
+        if (firstPart && lastPart) return `${firstPart} ${lastPart}`;
+        return firstPart || lastPart;
+    };
+
     const trainerId = b.trainer ? String(b.trainer.id) : String(b.trainer_id ?? '');
-    const trainerName = b.trainer?.full_name ?? b.trainer_name ?? '';
+    const trainerName = pickNonEmpty(
+        b.trainer?.username,
+        b.trainer_username,
+        fullFromParts(b.trainer?.first_name, b.trainer?.last_name),
+        fullFromParts(b.trainer_first_name, b.trainer_last_name),
+        b.trainer?.full_name,
+        b.trainer_name,
+        b.trainer?.email,
+        b.trainer_email,
+    );
     const trainerAvatar = (
         b.trainer?.profile_image_url
         ?? b.trainer?.avatar_url

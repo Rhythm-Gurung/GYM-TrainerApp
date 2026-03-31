@@ -3,6 +3,7 @@ import { Image as ExpoImage } from 'expo-image';
 import { useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import khaltiLogo from '../../../assets/images/Khalti.png';
 
 import { useTrainerDetail } from '@/api/hooks/useBookSession';
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
@@ -102,13 +103,16 @@ function getDateRange(bookings: Booking[]): string {
 
 // ─── Detail Sheet ─────────────────────────────────────────────────────────────
 
-function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainerAvatar }: {
+function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySelected, onOpenChat, trainerAvatar, unreadCountMap }: {
     group: TrainerGroup;
     filterStatus: string;
     onClose: () => void;
-    onCancel: (id: string) => void;
-    onPayNow: (booking: Booking) => void;
+    onCancel: (id: string) => Promise<void> | void;
+    onPayNow: (booking: Booking) => Promise<void> | void;
+    onPaySelected: (bookings: Booking[]) => Promise<void> | void;
+    onOpenChat: (booking: Booking) => void;
     trainerAvatar?: string;
+    unreadCountMap?: Record<string, number>;
 }) {
     const { authState } = useAuth();
     const insets = useSafeAreaInsets();
@@ -117,6 +121,113 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
         : group.bookings.filter((b) => b.status === filterStatus);
     const totalAmount = visibleBookings.reduce((sum, b) => sum + b.totalAmount, 0);
     const sorted = [...visibleBookings].sort((a, b) => a.date.localeCompare(b.date));
+    const confirmedBookings = sorted.filter((b) => b.status === 'confirmed');
+    const primaryConfirmedBooking = confirmedBookings[0] ?? null;
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(() => new Set());
+    const [isBulkPaying, setIsBulkPaying] = useState(false);
+    const [isBulkCancelling, setIsBulkCancelling] = useState(false);
+
+    const acceptedBookings = sorted.filter((b) => b.status === 'accepted');
+    const acceptedIds = acceptedBookings.map((b) => b.id);
+    const cancellableBookings = sorted.filter((b) => b.status === 'pending' || b.status === 'accepted');
+    const selectableIds = filterStatus === 'accepted' ? acceptedIds : cancellableBookings.map((b) => b.id);
+    const selectedCount = selectedBookingIds.size;
+    const allSelectableSelected = selectableIds.length > 0
+        && selectableIds.every((id) => selectedBookingIds.has(id));
+    const isAcceptedSelection = filterStatus === 'accepted';
+    const selectedAcceptedTotal = acceptedBookings.reduce((sum, booking) => (
+        selectedBookingIds.has(booking.id) ? sum + booking.totalAmount : sum
+    ), 0);
+
+    const toggleSelectionMode = () => {
+        if (selectionMode) {
+            setSelectionMode(false);
+            setSelectedBookingIds(new Set());
+            return;
+        }
+        setSelectionMode(true);
+    };
+
+    const toggleBookingSelection = (id: string) => {
+        setSelectedBookingIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (allSelectableSelected) {
+            setSelectedBookingIds(new Set());
+            return;
+        }
+        setSelectedBookingIds(new Set(selectableIds));
+    };
+
+    const runBulkPay = async () => {
+        if (!isAcceptedSelection) return;
+        const selected = acceptedBookings.filter((b) => selectedBookingIds.has(b.id));
+        if (selected.length === 0) return;
+
+        setIsBulkPaying(true);
+        try {
+            await Promise.resolve(onPaySelected(selected));
+            setSelectedBookingIds(new Set());
+            setSelectionMode(false);
+        } finally {
+            setIsBulkPaying(false);
+        }
+    };
+
+    const runBulkCancel = async () => {
+        const ids = Array.from(selectedBookingIds);
+        if (ids.length === 0) return;
+
+        setIsBulkCancelling(true);
+        try {
+            const batches = Array.from(
+                { length: Math.ceil(ids.length / 5) },
+                (_, index) => ids.slice(index * 5, index * 5 + 5),
+            );
+            await batches.reduce<Promise<void>>(
+                (chain, batch) => chain.then(() => Promise.all(batch.map((id) => Promise.resolve(onCancel(id)))).then(() => { })),
+                Promise.resolve(),
+            );
+            setSelectedBookingIds(new Set());
+            setSelectionMode(false);
+        } finally {
+            setIsBulkCancelling(false);
+        }
+    };
+
+    const confirmBulkPay = () => {
+        if (!isAcceptedSelection || selectedCount === 0 || isBulkPaying || isBulkCancelling) return;
+        Alert.alert(
+            'Pay selected bookings?',
+            `Proceed to payment for ${selectedCount} accepted booking${selectedCount !== 1 ? 's' : ''}?`,
+            [
+                { text: 'Not now', style: 'cancel' },
+                { text: 'Pay selected', onPress: () => { runBulkPay().catch(() => { }); } },
+            ],
+        );
+    };
+
+    const confirmBulkCancel = () => {
+        if (selectedCount === 0 || isBulkPaying || isBulkCancelling) return;
+        Alert.alert(
+            'Cancel selected bookings?',
+            `Cancel ${selectedCount} booking request${selectedCount !== 1 ? 's' : ''}? This cannot be undone.`,
+            [
+                { text: 'Keep them', style: 'cancel' },
+                { text: 'Cancel selected', style: 'destructive', onPress: () => { runBulkCancel().catch(() => { }); } },
+            ],
+        );
+    };
 
     const confirmCancel = (id: string, dateStr: string) => {
         Alert.alert(
@@ -139,7 +250,7 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                 backgroundColor: colors.white,
                 borderTopLeftRadius: 24,
                 borderTopRightRadius: 24,
-                maxHeight: '88%',
+                maxHeight: '92%',
                 paddingBottom: Math.max(insets.bottom, 16),
             }}
         >
@@ -148,6 +259,32 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                 <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.surfaceBorder }} />
             </View>
 
+            {filterStatus === 'confirmed' && primaryConfirmedBooking && (
+                <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            onClose();
+                            onOpenChat(primaryConfirmedBooking);
+                        }}
+                        activeOpacity={0.8}
+                        style={{
+                            height: 42,
+                            borderRadius: radius.md,
+                            backgroundColor: colors.primary,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 6,
+                        }}
+                    >
+                        <Ionicons name="chatbubbles-outline" size={15} color={colors.white} />
+                        <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                            Chat with trainer
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
             {/* Header */}
             <View
                 style={{
@@ -155,7 +292,7 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     paddingHorizontal: 20,
-                    paddingVertical: 12,
+                    paddingVertical: 14,
                     borderBottomWidth: 1,
                     borderBottomColor: colors.surfaceBorder,
                 }}
@@ -163,8 +300,8 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <View
                         style={{
-                            width: 42,
-                            height: 42,
+                            width: 46,
+                            height: 46,
                             borderRadius: radius.full,
                             backgroundColor: colors.primaryMuted,
                             alignItems: 'center',
@@ -206,51 +343,149 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                 </TouchableOpacity>
             </View>
 
+            {/* Bulk actions */}
+            {selectableIds.length > 0 && (
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingHorizontal: 20,
+                        paddingTop: 14,
+                        paddingBottom: 12,
+                    }}
+                >
+                    <TouchableOpacity
+                        onPress={toggleSelectionMode}
+                        activeOpacity={0.8}
+                        style={{
+                            height: 36,
+                            borderRadius: radius.full,
+                            paddingHorizontal: 14,
+                            backgroundColor: selectionMode ? colors.primaryMuted : colors.surface,
+                            borderWidth: 1,
+                            borderColor: selectionMode ? colors.primary : colors.surfaceBorder,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: selectionMode ? colors.primary : colors.textSecondary }}>
+                            {selectionMode ? 'Done' : 'Select'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={toggleSelectAll}
+                            activeOpacity={0.8}
+                            style={{
+                                height: 36,
+                                borderRadius: radius.full,
+                                paddingHorizontal: 14,
+                                backgroundColor: colors.surface,
+                                borderWidth: 1,
+                                borderColor: colors.surfaceBorder,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <Text style={{ fontSize: fontSize.badge, fontWeight: '600', color: colors.textSecondary }}>
+                                {allSelectableSelected ? 'Clear all' : 'Select all'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
+
             {/* Booking list */}
             <ScrollView
-                style={{ marginTop: 8 }}
-                contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
+                style={{ marginTop: 6 }}
+                contentContainerStyle={{
+                    paddingHorizontal: 22,
+                    paddingBottom: selectionMode ? 14 : 22,
+                    paddingTop: 4,
+                }}
                 showsVerticalScrollIndicator={false}
             >
                 {sorted.map((booking) => {
                     const cancellable = booking.status === 'pending' || booking.status === 'accepted';
+                    const selectable = selectableIds.includes(booking.id);
+                    const isSelected = selectedBookingIds.has(booking.id);
                     return (
                         <View
                             key={booking.id}
                             style={{
                                 backgroundColor: colors.surface,
                                 borderRadius: radius.card,
-                                padding: 14,
-                                marginBottom: 10,
+                                padding: 18,
+                                marginBottom: 16,
                                 borderWidth: 1,
                                 borderColor: colors.surfaceBorder,
                             }}
                         >
-                            {/* Date + status */}
-                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                    {formatDateFull(booking.date)}
-                                </Text>
-                                <View
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        paddingHorizontal: 8,
-                                        paddingVertical: 3,
-                                        borderRadius: radius.full,
-                                        backgroundColor: STATUS_BG[booking.status],
-                                    }}
-                                >
-                                    <Ionicons name={STATUS_ICON[booking.status]} size={11} color={STATUS_COLOR[booking.status]} />
-                                    <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[booking.status] }}>
-                                        {STATUS_LABEL[booking.status]}
+                            {/* Date + status + unread badge */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    {selectionMode && selectable && (
+                                        <TouchableOpacity
+                                            onPress={() => toggleBookingSelection(booking.id)}
+                                            activeOpacity={0.75}
+                                            style={{
+                                                width: 20,
+                                                height: 20,
+                                                borderRadius: 6,
+                                                borderWidth: 1.5,
+                                                borderColor: isSelected ? colors.primary : colors.surfaceBorder,
+                                                backgroundColor: isSelected ? colors.primary : colors.white,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            {isSelected && <Ionicons name="checkmark" size={14} color={colors.white} />}
+                                        </TouchableOpacity>
+                                    )}
+                                    <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
+                                        {formatDateFull(booking.date)}
                                     </Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <View
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 3,
+                                            borderRadius: radius.full,
+                                            backgroundColor: STATUS_BG[booking.status],
+                                        }}
+                                    >
+                                        <Ionicons name={STATUS_ICON[booking.status]} size={11} color={STATUS_COLOR[booking.status]} />
+                                        <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[booking.status] }}>
+                                            {STATUS_LABEL[booking.status]}
+                                        </Text>
+                                    </View>
+                                    {booking.status === 'confirmed' && unreadCountMap && unreadCountMap[booking.id] != null && unreadCountMap[booking.id] > 0 && (
+                                        <View
+                                            style={{
+                                                minWidth: 20,
+                                                height: 20,
+                                                borderRadius: 10,
+                                                backgroundColor: colors.error,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.white }}>
+                                                {unreadCountMap[booking.id] > 99 ? '99+' : unreadCountMap[booking.id]}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                             </View>
 
                             {/* Time + amount */}
-                            <View style={{ flexDirection: 'row', gap: 16 }}>
+                            <View style={{ flexDirection: 'row', gap: 16, flexWrap: 'wrap', rowGap: 10 }}>
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
                                     <Ionicons name="time-outline" size={13} color={colors.textSubtle} />
                                     <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>
@@ -266,7 +501,7 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                             </View>
 
                             {/* Pay Now — only when trainer has accepted */}
-                            {booking.status === 'accepted' && (
+                            {booking.status === 'accepted' && !selectionMode && (
                                 <TouchableOpacity
                                     onPress={() => {
                                         onClose();
@@ -274,19 +509,23 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                                     }}
                                     activeOpacity={0.8}
                                     style={{
-                                        marginTop: 12,
-                                        height: 38,
+                                        marginTop: 14,
+                                        height: 42,
                                         borderRadius: radius.md,
                                         backgroundColor: colors.primary,
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         flexDirection: 'row',
-                                        gap: 6,
+                                        gap: 8,
                                     }}
                                 >
-                                    <Ionicons name="card-outline" size={15} color={colors.white} />
+                                    <ExpoImage
+                                        source={khaltiLogo}
+                                        style={{ width: 20, height: 20, borderRadius: 4 }}
+                                        contentFit="contain"
+                                    />
                                     <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
-                                        {`Pay Now  ₹${booking.totalAmount.toLocaleString('en-IN')}`}
+                                        {`Pay with Khalti  ₹${booking.totalAmount.toLocaleString('en-IN')}`}
                                     </Text>
                                 </TouchableOpacity>
                             )}
@@ -295,14 +534,14 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                             {booking.status === 'refund_pending' && (
                                 <View
                                     style={{
-                                        marginTop: 10,
+                                        marginTop: 12,
                                         flexDirection: 'row',
                                         alignItems: 'center',
                                         gap: 6,
                                         backgroundColor: colors.accentBg,
                                         borderRadius: radius.md,
-                                        paddingHorizontal: 10,
-                                        paddingVertical: 7,
+                                        paddingHorizontal: 12,
+                                        paddingVertical: 9,
                                     }}
                                 >
                                     <Ionicons name="information-circle-outline" size={13} color={colors.accent} />
@@ -313,13 +552,13 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                             )}
 
                             {/* Cancel button — only for pending / accepted */}
-                            {cancellable && (
+                            {cancellable && !selectionMode && (
                                 <TouchableOpacity
                                     onPress={() => confirmCancel(booking.id, booking.date)}
                                     activeOpacity={0.8}
                                     style={{
-                                        marginTop: 12,
-                                        height: 34,
+                                        marginTop: 14,
+                                        height: 40,
                                         borderRadius: radius.md,
                                         borderWidth: 1.5,
                                         borderColor: colors.error,
@@ -339,17 +578,111 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, trainer
                     );
                 })}
             </ScrollView>
+
+            {selectionMode && (
+                <View
+                    style={{
+                        borderTopWidth: 1,
+                        borderTopColor: colors.surfaceBorder,
+                        paddingHorizontal: 20,
+                        paddingTop: 14,
+                        paddingBottom: 14,
+                        gap: 14,
+                    }}
+                >
+                    <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>
+                        {`${selectedCount} selected`}
+                    </Text>
+                    {isAcceptedSelection && (
+                        <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
+                            {`Total to pay: ₹${selectedAcceptedTotal.toLocaleString('en-IN')}`}
+                        </Text>
+                    )}
+                    {isAcceptedSelection ? (
+                        <View style={{ flexDirection: 'row', gap: 8 }}>
+                            <TouchableOpacity
+                                onPress={confirmBulkPay}
+                                disabled={selectedCount === 0 || isBulkPaying || isBulkCancelling}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    borderRadius: radius.md,
+                                    backgroundColor: selectedCount > 0 && !isBulkPaying && !isBulkCancelling ? colors.primary : colors.textDisabled,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexDirection: 'row',
+                                    gap: 6,
+                                }}
+                            >
+                                <ExpoImage
+                                    source={khaltiLogo}
+                                    style={{ width: 18, height: 18, borderRadius: 4 }}
+                                    contentFit="contain"
+                                />
+                                <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                    {isBulkPaying ? 'Paying with Khalti...' : `Pay with Khalti (${selectedCount})`}
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={confirmBulkCancel}
+                                disabled={selectedCount === 0 || isBulkPaying || isBulkCancelling}
+                                activeOpacity={0.8}
+                                style={{
+                                    flex: 1,
+                                    height: 44,
+                                    borderRadius: radius.md,
+                                    backgroundColor: selectedCount > 0 && !isBulkPaying && !isBulkCancelling ? colors.error : colors.textDisabled,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    flexDirection: 'row',
+                                    gap: 6,
+                                }}
+                            >
+                                <Ionicons name="close-circle-outline" size={15} color={colors.white} />
+                                <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                    {isBulkCancelling ? 'Cancelling...' : `Cancel selected (${selectedCount})`}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    ) : (
+                        <TouchableOpacity
+                            onPress={confirmBulkCancel}
+                            disabled={selectedCount === 0 || isBulkPaying || isBulkCancelling}
+                            activeOpacity={0.8}
+                            style={{
+                                height: 44,
+                                borderRadius: radius.md,
+                                backgroundColor: selectedCount > 0 && !isBulkPaying && !isBulkCancelling ? colors.error : colors.textDisabled,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexDirection: 'row',
+                                gap: 6,
+                            }}
+                        >
+                            <Ionicons name="trash-outline" size={15} color={colors.white} />
+                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                {isBulkCancelling ? 'Cancelling...' : `Cancel selected (${selectedCount})`}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
         </View>
     );
 }
 
 // ─── Summary Card ─────────────────────────────────────────────────────────────
 
-export default function TrainerBookingGroup({ group, filterStatus, onCancel, onPayNow }: {
+export default function TrainerBookingGroup({ group, filterStatus, onCancel, onPayNow, onPaySelected, onOpenChat, unreadCountMap }: {
     group: TrainerGroup;
     filterStatus: string;
-    onCancel: (id: string) => void;
-    onPayNow: (booking: Booking) => void;
+    onCancel: (id: string) => Promise<void> | void;
+    onPayNow: (booking: Booking) => Promise<void> | void;
+    onPaySelected: (bookings: Booking[]) => Promise<void> | void;
+    onOpenChat: (booking: Booking) => void;
+    unreadCountMap?: Record<string, number>;
 }) {
     const { authState } = useAuth();
     const [sheetOpen, setSheetOpen] = useState(false);
@@ -364,6 +697,7 @@ export default function TrainerBookingGroup({ group, filterStatus, onCancel, onP
     const dateRange = getDateRange(visibleBookings);
     const totalAmount = visibleBookings.reduce((sum, b) => sum + b.totalAmount, 0);
     const pendingCount = counts.pending ?? 0;
+    const totalUnread = visibleBookings.reduce((sum, b) => sum + (unreadCountMap?.[b.id] ?? 0), 0);
     const resolvedTrainerAvatar = visibleBookings.find((b) => b.trainerAvatar)?.trainerAvatar
         ?? group.bookings.find((b) => b.trainerAvatar)?.trainerAvatar
         ?? trainerDetail?.avatar
@@ -434,9 +768,26 @@ export default function TrainerBookingGroup({ group, filterStatus, onCancel, onP
                             }}
                         >
                             <Text style={{ fontSize: fontSize.badge, fontWeight: '600', color: colors.textSecondary }}>
-                                {`${group.bookings.length} session${group.bookings.length !== 1 ? 's' : ''}`}
+                                {`${visibleBookings.length} session${visibleBookings.length !== 1 ? 's' : ''}`}
                             </Text>
                         </View>
+                        {/* Unread badge */}
+                        {totalUnread > 0 && (
+                            <View
+                                style={{
+                                    minWidth: 24,
+                                    height: 24,
+                                    borderRadius: 12,
+                                    backgroundColor: colors.error,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.white }}>
+                                    {totalUnread > 99 ? '99+' : totalUnread}
+                                </Text>
+                            </View>
+                        )}
                         <Ionicons name="chevron-forward" size={16} color={colors.textSubtle} />
                     </View>
                 </View>
@@ -497,21 +848,34 @@ export default function TrainerBookingGroup({ group, filterStatus, onCancel, onP
                 visible={sheetOpen}
                 transparent
                 animationType="slide"
+                statusBarTranslucent
                 onRequestClose={() => setSheetOpen(false)}
             >
-                <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-                    activeOpacity={1}
-                    onPress={() => setSheetOpen(false)}
-                />
-                <DetailSheet
-                    group={group}
-                    filterStatus={filterStatus}
-                    onClose={() => setSheetOpen(false)}
-                    onCancel={onCancel}
-                    onPayNow={onPayNow}
-                    trainerAvatar={resolvedTrainerAvatar}
-                />
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            left: 0,
+                            backgroundColor: 'rgba(0,0,0,0.45)',
+                        }}
+                        activeOpacity={1}
+                        onPress={() => setSheetOpen(false)}
+                    />
+                    <DetailSheet
+                        group={group}
+                        filterStatus={filterStatus}
+                        onClose={() => setSheetOpen(false)}
+                        onCancel={onCancel}
+                        onPayNow={onPayNow}
+                        onPaySelected={onPaySelected}
+                        onOpenChat={onOpenChat}
+                        trainerAvatar={resolvedTrainerAvatar}
+                        unreadCountMap={unreadCountMap}
+                    />
+                </View>
             </Modal>
         </>
     );

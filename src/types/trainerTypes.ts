@@ -70,6 +70,7 @@ export type TrainerSessionStatus =
 // Trainer Session (trainer-side view of a booking — shows client info)
 export interface TrainerSession {
     id: string;
+    bookingId?: string;
     clientName: string;
     clientId: string;
     clientAvatar?: string;

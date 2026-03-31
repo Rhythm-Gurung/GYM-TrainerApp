@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Text, View } from 'react-native';
-import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 
 import { colors, fontSize, radius } from '@/constants/theme';
 import type { Booking } from '@/types/clientTypes';
@@ -64,9 +64,11 @@ export interface BookingCardProps {
     booking: Booking;
     /** Optional shared value for coordinated stagger animations from the parent. */
     animX?: SharedValue<number>;
+    /** Unread message count for this booking (shows badge if > 0). */
+    unreadCount?: number;
 }
 
-export default function BookingCard({ booking, animX }: BookingCardProps) {
+export default function BookingCard({ booking, animX, unreadCount }: BookingCardProps) {
     // Fallback for when the parent doesn't supply an animX (e.g. dynamic lists)
     const fallbackX = useSharedValue(0);
     const xValue = animX ?? fallbackX;
@@ -85,7 +87,7 @@ export default function BookingCard({ booking, animX }: BookingCardProps) {
                     borderColor: colors.surfaceBorder,
                 }}
             >
-                {/* Trainer name + status badge */}
+                {/* Trainer name + status badge + unread badge */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                     <Text
                         style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary, flex: 1, marginRight: 8 }}
@@ -94,21 +96,42 @@ export default function BookingCard({ booking, animX }: BookingCardProps) {
                         {booking.trainerName}
                     </Text>
 
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 4,
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: radius.full,
-                            backgroundColor: STATUS_BG[booking.status],
-                        }}
-                    >
-                        <Ionicons name={STATUS_ICON[booking.status]} size={12} color={STATUS_COLOR[booking.status]} />
-                        <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[booking.status] }}>
-                            {STATUS_LABEL[booking.status]}
-                        </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {/* Status badge */}
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: radius.full,
+                                backgroundColor: STATUS_BG[booking.status],
+                            }}
+                        >
+                            <Ionicons name={STATUS_ICON[booking.status]} size={12} color={STATUS_COLOR[booking.status]} />
+                            <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[booking.status] }}>
+                                {STATUS_LABEL[booking.status]}
+                            </Text>
+                        </View>
+
+                        {/* Unread message badge (only for confirmed bookings) */}
+                        {booking.status === 'confirmed' && unreadCount != null && unreadCount > 0 && (
+                            <View
+                                style={{
+                                    minWidth: 20,
+                                    height: 20,
+                                    borderRadius: 10,
+                                    backgroundColor: colors.error,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.white }}>
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 

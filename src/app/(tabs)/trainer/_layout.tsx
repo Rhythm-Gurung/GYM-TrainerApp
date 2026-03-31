@@ -1,3 +1,4 @@
+import { useBadgeWebSocket } from '@/api/hooks/useBadgeWebSocket';
 import { colors, fontSize } from '@/constants/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -68,6 +69,7 @@ export const TAB_BAR_BASE_HEIGHT = 56;
 
 export default function TrainerTabLayout() {
     const insets = useSafeAreaInsets();
+    useBadgeWebSocket();
 
     return (
         <Tabs
@@ -150,6 +152,14 @@ export default function TrainerTabLayout() {
             />
             <Tabs.Screen
                 name="chatDetail"
+                options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' } }}
+            />
+            <Tabs.Screen
+                name="bookingChat"
+                options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' } }}
+            />
+            <Tabs.Screen
+                name="bookingChatRoom"
                 options={{ href: null, headerShown: false, tabBarStyle: { display: 'none' } }}
             />
         </Tabs>

@@ -1,8 +1,8 @@
 import { useCallback } from 'react';
 
 import { clientService } from '@/api/services/client.service';
+import type { ApiAvailableSlotsResponse, Booking, BulkPaymentInitiateRequest, BulkPaymentInitiateResponse, PaymentInitiateResponse, PaymentStatusResponse, Trainer } from '@/types/clientTypes';
 import { mapApiTrainer } from '@/types/clientTypes';
-import type { ApiAvailableSlotsResponse, Booking, PaymentInitiateResponse, PaymentStatusResponse, Trainer } from '@/types/clientTypes';
 
 import { useApiMutation } from './useApiMutation';
 import { useApiQuery } from './useApiQuery';
@@ -102,6 +102,16 @@ export function useCancelBooking() {
  */
 export function useInitiatePayment() {
     return useApiMutation<PaymentInitiateResponse, string>(clientService.initiatePayment);
+}
+
+/**
+ * Mutation to initiate one payment for multiple accepted bookings.
+ * Frontend sends only booking ids; backend computes the total payable amount.
+ */
+export function useInitiateBulkPayment() {
+    return useApiMutation<BulkPaymentInitiateResponse, BulkPaymentInitiateRequest>(
+        clientService.initiateBulkPayment,
+    );
 }
 
 /**

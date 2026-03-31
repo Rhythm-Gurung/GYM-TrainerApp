@@ -3,15 +3,15 @@ import { authService } from '@/api/services/auth.service';
 import { API_CONFIG } from '@/constants/config';
 import type { DateOverride, ScheduleOverride, ScheduleScope } from '@/types/trainerAvailability.types';
 import type {
-  CertificationListItem,
-  DaySchedule,
-  GalleryItem,
-  SessionMode,
-  TrainerEarningsResponse,
-  TrainerRegisterInput,
-  TrainerRegisterResponse,
-  TrainerSession,
-  TrainerSessionStatus,
+    CertificationListItem,
+    DaySchedule,
+    GalleryItem,
+    SessionMode,
+    TrainerEarningsResponse,
+    TrainerRegisterInput,
+    TrainerRegisterResponse,
+    TrainerSession,
+    TrainerSessionStatus,
 } from '@/types/trainerTypes';
 
 function parseMoney(value: unknown): number {
@@ -29,6 +29,19 @@ function pickString(value: unknown, fallback = ''): string {
   return fallback;
 }
 
+function pickNonEmpty(...values: unknown[]): string {
+  return values
+    .map((value) => pickString(value).trim())
+    .find((value) => Boolean(value)) || '';
+}
+
+function fullNameFromParts(firstName: unknown, lastName: unknown): string {
+  const first = pickNonEmpty(firstName);
+  const last = pickNonEmpty(lastName);
+  if (first && last) return `${first} ${last}`;
+  return first || last;
+}
+
 function mapApiTrainerSession(item: unknown): TrainerSession {
   const row = (item && typeof item === 'object') ? (item as Record<string, unknown>) : {};
 
@@ -37,10 +50,18 @@ function mapApiTrainerSession(item: unknown): TrainerSession {
     : null;
 
   const clientName =
-    pickString(clientObj?.full_name)
-    || pickString(clientObj?.name)
-    || pickString(row.client_name)
-    || pickString(row.clientName)
+    pickNonEmpty(
+      clientObj?.username,
+      row.client_username,
+      fullNameFromParts(clientObj?.first_name, clientObj?.last_name),
+      fullNameFromParts(row.client_first_name, row.client_last_name),
+      clientObj?.full_name,
+      clientObj?.name,
+      row.client_name,
+      row.clientName,
+      clientObj?.email,
+      row.client_email,
+    )
     || 'Client';
 
   const clientId =
@@ -66,6 +87,7 @@ function mapApiTrainerSession(item: unknown): TrainerSession {
 
   return {
     id: pickString(row.id),
+    bookingId: pickString(row.booking_id ?? row.bookingId ?? row.id),
     clientName,
     clientId,
     clientAvatar: clientAvatar || undefined,

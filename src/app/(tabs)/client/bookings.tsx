@@ -1,17 +1,19 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useBookings, useCancelBooking, useInitiatePayment } from '@/api/hooks/useBookSession';
+import { useBookings, useCancelBooking, useInitiateBulkPayment, useInitiatePayment } from '@/api/hooks/useBookSession';
+import { useBookingChatSessions } from '@/api/hooks/useBookingChat';
 import { clientService } from '@/api/services/client.service';
 import TrainerBookingGroup, { type TrainerGroup } from '@/components/client/TrainerBookingGroup';
 import { colors, fontSize, radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
 import { showErrorToast } from '@/lib';
+import { chatEvents } from '@/lib/chatEvents';
 import type { Booking } from '@/types/clientTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -33,19 +35,36 @@ const STATUS_TABS: { label: string; value: FilterValue }[] = [
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ClientBookings() {
+    const router = useRouter();
     const tabBarHeight = useTabBarHeight();
     const { tab } = useLocalSearchParams<{ tab?: string }>();
     const [activeFilter, setActiveFilter] = useState<FilterValue>('all');
     const { authState } = useAuth();
 
     const { data: bookings, isLoading, refetch } = useBookings();
+    const { data: chatSessions, refetch: refetchChatSessions } = useBookingChatSessions();
     const { mutateAsync: cancelBooking } = useCancelBooking();
     const { mutateAsync: initiatePayment } = useInitiatePayment();
+    const { mutateAsync: initiateBulkPayment } = useInitiateBulkPayment();
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
 
     // Optimistic status overrides keyed by booking id
     const [statusOverrides, setStatusOverrides] = useState<Record<string, Booking['status']>>({});
+
+    // Real-time unread count cache: backend-sourced via polling + WebSocket patches
+    const [unreadOverrides, setUnreadOverrides] = useState<Record<string, number>>({});
+
+    // Create a map of bookingId -> unreadCount for quick lookup (from API + real-time patches)
+    const unreadCountMap = useMemo(() => {
+        const map: Record<string, number> = {};
+        chatSessions?.forEach((session) => {
+            const key = session.bookingId;
+            // Use real-time patch if available, else fall back to API value
+            map[key] = unreadOverrides[key] ?? session.unreadCount;
+        });
+        return map;
+    }, [chatSessions, unreadOverrides]);
 
     // Sync active filter from navigation param every time the screen is focused
     useFocusEffect(
@@ -55,6 +74,27 @@ export default function ClientBookings() {
             }
         }, [tab]),
     );
+
+    // Refresh badge counts on screen focus (real-time updates come via useBadgeWebSocket in layout)
+    useFocusEffect(
+        useCallback(() => {
+            refetchChatSessions().catch(() => { });
+        }, [refetchChatSessions]),
+    );
+
+    // Listen for real-time unread updates via WebSocket
+    useEffect(() => {
+        const unsubscribe = chatEvents.on('unread_update', (data) => {
+            if (__DEV__) {
+                console.warn(`[ClientBookings] WS unread patch: booking ${data.bookingId} -> ${data.unreadCount}`);
+            }
+            setUnreadOverrides((prev) => ({
+                ...prev,
+                [data.bookingId]: data.unreadCount,
+            }));
+        });
+        return unsubscribe;
+    }, []);
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
@@ -94,6 +134,67 @@ export default function ClientBookings() {
             // initiatePayment errors are shown by useApiMutation toast
         }
     }, [initiatePayment, refetch]);
+
+    const handlePaySelected = useCallback(async (selectedBookings: Booking[]) => {
+        if (selectedBookings.length === 0) return;
+        if (selectedBookings.length === 1) {
+            await handlePayNow(selectedBookings[0]);
+            return;
+        }
+
+        try {
+            const bookingIds = selectedBookings.map((b) => b.id);
+            const idempotencyKey = `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
+            const bulkInit = await initiateBulkPayment({
+                bookingIds,
+                idempotencyKey,
+            });
+
+            if (!bulkInit.payment_url || !bulkInit.payment_group_id) {
+                showErrorToast('Could not initiate bulk payment. Please try again.');
+                return;
+            }
+
+            await WebBrowser.openBrowserAsync(bulkInit.payment_url);
+
+            const bulkStatus = await clientService.getBulkPaymentStatus(bulkInit.payment_group_id);
+            const completedLike = new Set(['confirmed', 'completed']);
+            const failedLike = new Set(['failed', 'cancelled', 'expired']);
+
+            const confirmedIds = bulkStatus.bookings
+                .filter((item) => completedLike.has(String(item.status).toLowerCase()))
+                .map((item) => item.bookingId)
+                .filter(Boolean);
+
+            if (String(bulkStatus.status).toLowerCase() === 'completed' || confirmedIds.length > 0) {
+                if (confirmedIds.length > 0) {
+                    setStatusOverrides((prev) => confirmedIds.reduce<Record<string, Booking['status']>>(
+                        (acc, id) => ({ ...acc, [id]: 'confirmed' }),
+                        { ...prev },
+                    ));
+                }
+                refetch();
+                return;
+            }
+
+            if (failedLike.has(String(bulkStatus.status).toLowerCase())) {
+                showErrorToast('Bulk payment was not completed. Please try again.');
+            }
+        } catch {
+            // bulk payment errors are shown by useApiMutation toast when available
+        }
+    }, [handlePayNow, initiateBulkPayment, refetch]);
+
+    const handleOpenBookingChat = useCallback((booking: Booking) => {
+        router.push({
+            pathname: '/(tabs)/client/bookingChatRoom' as never,
+            params: {
+                bookingId: booking.id,
+                partnerName: booking.trainerName,
+            },
+        });
+    }, [router]);
 
     // Apply status overrides on top of server data
     const allBookings = useMemo(
@@ -203,7 +304,16 @@ export default function ClientBookings() {
                     >
                         {filteredGroups.length > 0 ? (
                             filteredGroups.map((group) => (
-                                <TrainerBookingGroup key={group.trainerId} group={group} filterStatus={activeFilter} onCancel={handleCancel} onPayNow={handlePayNow} />
+                                <TrainerBookingGroup
+                                    key={group.trainerId}
+                                    group={group}
+                                    filterStatus={activeFilter}
+                                    onCancel={handleCancel}
+                                    onPayNow={handlePayNow}
+                                    onPaySelected={handlePaySelected}
+                                    onOpenChat={handleOpenBookingChat}
+                                    unreadCountMap={unreadCountMap}
+                                />
                             ))
                         ) : (
                             /* ── Empty state ─────────────────────────────────────── */

@@ -1,6 +1,7 @@
 export const API_CONFIG = {
     BASE_URL:
     process.env.EXPO_PUBLIC_API_URL,
+    WS_BASE_URL: process.env.EXPO_PUBLIC_WS_URL,
     TIMEOUT: 30000,
     ENDPOINTS: {
         AUTH: {
@@ -93,9 +94,13 @@ export const API_CONFIG = {
         PAYMENT: {
             // POST /api/payment/initiate/         → body: { booking_id } → returns { pidx, payment_url, payment_id }
             // GET  /api/payment/status/{booking_id}/  → payment + booking status
+            // POST /api/payment/bulk/initiate/    → body: { booking_ids: number[] }
+            // GET  /api/payment/bulk/status/{payment_group_id}/ → group + per-booking statuses
             // GET  /api/payment/trainer/earnings/ → trainer earnings summary + payout list
             INITIATE: '/api/payment/initiate/',
             STATUS: '/api/payment/status/',
+            BULK_INITIATE: '/api/payment/bulk/initiate/',
+            BULK_STATUS: '/api/payment/bulk/status/',
             TRAINER_EARNINGS: '/api/payment/trainer/earnings/',
         },
         TOKEN: {
@@ -113,6 +118,9 @@ export const API_CONFIG = {
             CLIENT_HISTORY: '/api/chat/client/history/',
             TRAINER_SIMPLE: '/api/chat/trainer/',
             TRAINER_HISTORY: '/api/chat/trainer/history/',
+            SESSIONS: '/api/chat/sessions/',
+            HISTORY: '/api/chat/history/',
+            READ: '/api/chat/read/',
         },
     },
 } as const;

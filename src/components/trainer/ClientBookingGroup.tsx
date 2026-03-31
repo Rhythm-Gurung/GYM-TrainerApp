@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useState } from 'react';
-import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
@@ -21,9 +21,11 @@ export interface ClientGroup {
 interface ClientBookingGroupProps {
     group: ClientGroup;
     filterStatus: string; // active tab: 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'
-    onAccept: (id: string) => void;
-    onReject: (id: string) => void;
+    onAccept: (id: string) => Promise<void> | void;
+    onReject: (id: string) => Promise<void> | void;
     onComplete: (id: string) => void;
+    onOpenChat: (session: TrainerSession) => void;
+    unreadCountMap?: Record<string, number>;
 }
 
 // ─── Status maps ──────────────────────────────────────────────────────────────
@@ -117,12 +119,23 @@ interface DetailSheetProps {
     group: ClientGroup;
     filterStatus: string;
     onClose: () => void;
-    onAccept: (id: string) => void;
-    onReject: (id: string) => void;
+    onAccept: (id: string) => Promise<void> | void;
+    onReject: (id: string) => Promise<void> | void;
     onComplete: (id: string) => void;
+    onOpenChat: (session: TrainerSession) => void;
+    unreadCountMap?: Record<string, number>;
 }
 
-function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onComplete }: DetailSheetProps) {
+function DetailSheet({
+    group,
+    filterStatus,
+    onClose,
+    onAccept,
+    onReject,
+    onComplete,
+    onOpenChat,
+    unreadCountMap,
+}: DetailSheetProps) {
     const { authState } = useAuth();
     const insets = useSafeAreaInsets();
     const visibleSessions = filterStatus === 'all'
@@ -130,6 +143,113 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
         : group.sessions.filter((s) => s.status === filterStatus);
     const totalAmount = visibleSessions.reduce((sum, s) => sum + s.totalAmount, 0);
     const sorted = [...visibleSessions].sort((a, b) => a.date.localeCompare(b.date));
+    const confirmedSessions = sorted.filter((s) => s.status === 'confirmed');
+    const primaryConfirmedSession = confirmedSessions[0] ?? null;
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(() => new Set());
+    const [isBulkAccepting, setIsBulkAccepting] = useState(false);
+    const [isBulkRejecting, setIsBulkRejecting] = useState(false);
+
+    const selectableSessions = sorted.filter((s) => s.status === 'pending');
+    const selectableIds = selectableSessions.map((s) => s.id);
+    const selectedCount = selectedSessionIds.size;
+    const allSelectableSelected = selectableIds.length > 0
+        && selectableIds.every((id) => selectedSessionIds.has(id));
+
+    const toggleSelectionMode = () => {
+        if (selectionMode) {
+            setSelectionMode(false);
+            setSelectedSessionIds(new Set());
+            return;
+        }
+        setSelectionMode(true);
+    };
+
+    const toggleSessionSelection = (id: string) => {
+        setSelectedSessionIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
+
+    const toggleSelectAll = () => {
+        if (allSelectableSelected) {
+            setSelectedSessionIds(new Set());
+            return;
+        }
+        setSelectedSessionIds(new Set(selectableIds));
+    };
+
+    const runBulkAccept = async () => {
+        const ids = Array.from(selectedSessionIds);
+        if (ids.length === 0) return;
+
+        setIsBulkAccepting(true);
+        try {
+            const batches = Array.from(
+                { length: Math.ceil(ids.length / 5) },
+                (_, index) => ids.slice(index * 5, index * 5 + 5),
+            );
+            await batches.reduce<Promise<void>>(
+                (chain, batch) => chain.then(() => Promise.all(batch.map((id) => Promise.resolve(onAccept(id)))).then(() => { })),
+                Promise.resolve(),
+            );
+            setSelectedSessionIds(new Set());
+            setSelectionMode(false);
+        } finally {
+            setIsBulkAccepting(false);
+        }
+    };
+
+    const runBulkReject = async () => {
+        const ids = Array.from(selectedSessionIds);
+        if (ids.length === 0) return;
+
+        setIsBulkRejecting(true);
+        try {
+            const batches = Array.from(
+                { length: Math.ceil(ids.length / 5) },
+                (_, index) => ids.slice(index * 5, index * 5 + 5),
+            );
+            await batches.reduce<Promise<void>>(
+                (chain, batch) => chain.then(() => Promise.all(batch.map((id) => Promise.resolve(onReject(id)))).then(() => { })),
+                Promise.resolve(),
+            );
+            setSelectedSessionIds(new Set());
+            setSelectionMode(false);
+        } finally {
+            setIsBulkRejecting(false);
+        }
+    };
+
+    const confirmBulkAccept = () => {
+        if (selectedCount === 0 || isBulkAccepting || isBulkRejecting) return;
+        Alert.alert(
+            'Accept selected bookings?',
+            `Accept ${selectedCount} pending booking request${selectedCount !== 1 ? 's' : ''}?`,
+            [
+                { text: 'Cancel', style: 'cancel' },
+                { text: 'Accept selected', onPress: () => { runBulkAccept().catch(() => { }); } },
+            ],
+        );
+    };
+
+    const confirmBulkReject = () => {
+        if (selectedCount === 0 || isBulkAccepting || isBulkRejecting) return;
+        Alert.alert(
+            'Reject selected bookings?',
+            `Reject ${selectedCount} pending booking request${selectedCount !== 1 ? 's' : ''}? This cannot be undone.`,
+            [
+                { text: 'Keep them', style: 'cancel' },
+                { text: 'Reject selected', style: 'destructive', onPress: () => { runBulkReject().catch(() => { }); } },
+            ],
+        );
+    };
 
     return (
         <View
@@ -149,6 +269,32 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
             <View style={{ alignItems: 'center', paddingTop: 12, paddingBottom: 4 }}>
                 <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.surfaceBorder }} />
             </View>
+
+            {filterStatus === 'confirmed' && primaryConfirmedSession && (
+                <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 }}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            onClose();
+                            onOpenChat(primaryConfirmedSession);
+                        }}
+                        activeOpacity={0.8}
+                        style={{
+                            height: 38,
+                            borderRadius: radius.md,
+                            backgroundColor: colors.trainerPrimary,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexDirection: 'row',
+                            gap: 6,
+                        }}
+                    >
+                        <Ionicons name="chatbubbles-outline" size={14} color={colors.white} />
+                        <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                            Chat with client
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Header */}
             <View
@@ -208,6 +354,60 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
                 </TouchableOpacity>
             </View>
 
+            {/* Bulk actions for pending requests */}
+            {selectableIds.length > 0 && (
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingHorizontal: 20,
+                        paddingTop: 10,
+                        paddingBottom: 8,
+                    }}
+                >
+                    <TouchableOpacity
+                        onPress={toggleSelectionMode}
+                        activeOpacity={0.8}
+                        style={{
+                            height: 32,
+                            borderRadius: radius.full,
+                            paddingHorizontal: 12,
+                            backgroundColor: selectionMode ? colors.trainerMuted : colors.surface,
+                            borderWidth: 1,
+                            borderColor: selectionMode ? colors.trainerPrimary : colors.surfaceBorder,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: selectionMode ? colors.trainerPrimary : colors.textSecondary }}>
+                            {selectionMode ? 'Done' : 'Select'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {selectionMode && (
+                        <TouchableOpacity
+                            onPress={toggleSelectAll}
+                            activeOpacity={0.8}
+                            style={{
+                                height: 32,
+                                borderRadius: radius.full,
+                                paddingHorizontal: 12,
+                                backgroundColor: colors.surface,
+                                borderWidth: 1,
+                                borderColor: colors.surfaceBorder,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <Text style={{ fontSize: fontSize.badge, fontWeight: '600', color: colors.textSecondary }}>
+                                {allSelectableSelected ? 'Clear all' : 'Select all'}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
+            )}
+
             {/* Session list */}
             <ScrollView
                 style={{ marginTop: 8 }}
@@ -216,6 +416,9 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
             >
                 {sorted.map((session) => {
                     const showActions = session.status === 'pending' || session.status === 'confirmed';
+                    const unreadKey = session.bookingId ?? session.id;
+                    const isRejectable = session.status === 'pending';
+                    const isSelected = selectedSessionIds.has(session.id);
 
                     return (
                         <View
@@ -229,26 +432,64 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
                                 borderColor: colors.surfaceBorder,
                             }}
                         >
-                            {/* Date + status row */}
+                            {/* Date + status + unread badge row */}
                             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
-                                    {formatDateFull(session.date)}
-                                </Text>
-                                <View
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        paddingHorizontal: 8,
-                                        paddingVertical: 3,
-                                        borderRadius: radius.full,
-                                        backgroundColor: STATUS_BG[session.status],
-                                    }}
-                                >
-                                    <Ionicons name={STATUS_ICON[session.status]} size={11} color={STATUS_COLOR[session.status]} />
-                                    <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[session.status] }}>
-                                        {STATUS_LABEL[session.status]}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                    {selectionMode && isRejectable && (
+                                        <TouchableOpacity
+                                            onPress={() => toggleSessionSelection(session.id)}
+                                            activeOpacity={0.75}
+                                            style={{
+                                                width: 20,
+                                                height: 20,
+                                                borderRadius: 6,
+                                                borderWidth: 1.5,
+                                                borderColor: isSelected ? colors.trainerPrimary : colors.surfaceBorder,
+                                                backgroundColor: isSelected ? colors.trainerPrimary : colors.white,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            {isSelected && <Ionicons name="checkmark" size={14} color={colors.white} />}
+                                        </TouchableOpacity>
+                                    )}
+                                    <Text style={{ fontSize: fontSize.tag, fontWeight: '600', color: colors.textPrimary }}>
+                                        {formatDateFull(session.date)}
                                     </Text>
+                                </View>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <View
+                                        style={{
+                                            flexDirection: 'row',
+                                            alignItems: 'center',
+                                            gap: 4,
+                                            paddingHorizontal: 8,
+                                            paddingVertical: 3,
+                                            borderRadius: radius.full,
+                                            backgroundColor: STATUS_BG[session.status],
+                                        }}
+                                    >
+                                        <Ionicons name={STATUS_ICON[session.status]} size={11} color={STATUS_COLOR[session.status]} />
+                                        <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[session.status] }}>
+                                            {STATUS_LABEL[session.status]}
+                                        </Text>
+                                    </View>
+                                    {session.status === 'confirmed' && unreadCountMap && unreadCountMap[unreadKey] != null && unreadCountMap[unreadKey] > 0 && (
+                                        <View
+                                            style={{
+                                                minWidth: 20,
+                                                height: 20,
+                                                borderRadius: 10,
+                                                backgroundColor: colors.error,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                            }}
+                                        >
+                                            <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.white }}>
+                                                {unreadCountMap[unreadKey] > 99 ? '99+' : unreadCountMap[unreadKey]}
+                                            </Text>
+                                        </View>
+                                    )}
                                 </View>
                             </View>
 
@@ -294,42 +535,46 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
                                 <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
                                     {session.status === 'pending' && (
                                         <>
-                                            <TouchableOpacity
-                                                onPress={() => onAccept(session.id)}
-                                                activeOpacity={0.8}
-                                                style={{
-                                                    flex: 1,
-                                                    height: 36,
-                                                    borderRadius: radius.md,
-                                                    backgroundColor: colors.successDark,
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    flexDirection: 'row',
-                                                    gap: 5,
-                                                }}
-                                            >
-                                                <Ionicons name="checkmark-circle-outline" size={14} color={colors.white} />
-                                                <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>Accept</Text>
-                                            </TouchableOpacity>
-                                            <TouchableOpacity
-                                                onPress={() => onReject(session.id)}
-                                                activeOpacity={0.8}
-                                                style={{
-                                                    flex: 1,
-                                                    height: 36,
-                                                    borderRadius: radius.md,
-                                                    backgroundColor: colors.white,
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    flexDirection: 'row',
-                                                    gap: 5,
-                                                    borderWidth: 1.5,
-                                                    borderColor: colors.error,
-                                                }}
-                                            >
-                                                <Ionicons name="close-circle-outline" size={14} color={colors.error} />
-                                                <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.error }}>Reject</Text>
-                                            </TouchableOpacity>
+                                            {!selectionMode && (
+                                                <TouchableOpacity
+                                                    onPress={() => onAccept(session.id)}
+                                                    activeOpacity={0.8}
+                                                    style={{
+                                                        flex: 1,
+                                                        height: 36,
+                                                        borderRadius: radius.md,
+                                                        backgroundColor: colors.successDark,
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexDirection: 'row',
+                                                        gap: 5,
+                                                    }}
+                                                >
+                                                    <Ionicons name="checkmark-circle-outline" size={14} color={colors.white} />
+                                                    <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>Accept</Text>
+                                                </TouchableOpacity>
+                                            )}
+                                            {!selectionMode && (
+                                                <TouchableOpacity
+                                                    onPress={() => onReject(session.id)}
+                                                    activeOpacity={0.8}
+                                                    style={{
+                                                        flex: 1,
+                                                        height: 36,
+                                                        borderRadius: radius.md,
+                                                        backgroundColor: colors.white,
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        flexDirection: 'row',
+                                                        gap: 5,
+                                                        borderWidth: 1.5,
+                                                        borderColor: colors.error,
+                                                    }}
+                                                >
+                                                    <Ionicons name="close-circle-outline" size={14} color={colors.error} />
+                                                    <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.error }}>Reject</Text>
+                                                </TouchableOpacity>
+                                            )}
                                         </>
                                     )}
                                     {session.status === 'confirmed' && (
@@ -357,13 +602,81 @@ function DetailSheet({ group, filterStatus, onClose, onAccept, onReject, onCompl
                     );
                 })}
             </ScrollView>
+
+            {selectionMode && (
+                <View
+                    style={{
+                        borderTopWidth: 1,
+                        borderTopColor: colors.surfaceBorder,
+                        paddingHorizontal: 20,
+                        paddingTop: 10,
+                        paddingBottom: 8,
+                        gap: 10,
+                    }}
+                >
+                    <Text style={{ fontSize: fontSize.badge, color: colors.textMuted }}>
+                        {`${selectedCount} selected`}
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                            onPress={confirmBulkAccept}
+                            disabled={selectedCount === 0 || isBulkAccepting || isBulkRejecting}
+                            activeOpacity={0.8}
+                            style={{
+                                flex: 1,
+                                height: 40,
+                                borderRadius: radius.md,
+                                backgroundColor: selectedCount > 0 && !isBulkAccepting && !isBulkRejecting ? colors.successDark : colors.textDisabled,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexDirection: 'row',
+                                gap: 6,
+                            }}
+                        >
+                            <Ionicons name="checkmark-circle-outline" size={15} color={colors.white} />
+                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                {isBulkAccepting ? 'Accepting...' : `Accept (${selectedCount})`}
+                            </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={confirmBulkReject}
+                            disabled={selectedCount === 0 || isBulkAccepting || isBulkRejecting}
+                            activeOpacity={0.8}
+                            style={{
+                                flex: 1,
+                                height: 40,
+                                borderRadius: radius.md,
+                                backgroundColor: selectedCount > 0 && !isBulkAccepting && !isBulkRejecting ? colors.error : colors.textDisabled,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                flexDirection: 'row',
+                                gap: 6,
+                            }}
+                        >
+                            <Ionicons name="close-circle-outline" size={15} color={colors.white} />
+                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                {isBulkRejecting ? 'Rejecting...' : `Reject (${selectedCount})`}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            )}
         </View>
     );
 }
 
 // ─── Summary Card ─────────────────────────────────────────────────────────────
 
-export default function ClientBookingGroup({ group, filterStatus, onAccept, onReject, onComplete }: ClientBookingGroupProps) {
+export default function ClientBookingGroup({
+    group,
+    filterStatus,
+    onAccept,
+    onReject,
+    onComplete,
+    onOpenChat,
+    unreadCountMap,
+}: ClientBookingGroupProps) {
     const { authState } = useAuth();
     const [sheetOpen, setSheetOpen] = useState(false);
 
@@ -375,6 +688,10 @@ export default function ClientBookingGroup({ group, filterStatus, onAccept, onRe
     const dateRange = getDateRange(visibleSessions);
     const totalAmount = visibleSessions.reduce((sum, s) => sum + s.totalAmount, 0);
     const pendingCount = counts.pending ?? 0;
+    const totalUnread = visibleSessions.reduce((sum, s) => {
+        const unreadKey = s.bookingId ?? s.id;
+        return sum + (unreadCountMap?.[unreadKey] ?? 0);
+    }, 0);
 
     return (
         <>
@@ -445,6 +762,23 @@ export default function ClientBookingGroup({ group, filterStatus, onAccept, onRe
                                 {`${visibleSessions.length} session${visibleSessions.length !== 1 ? 's' : ''}`}
                             </Text>
                         </View>
+                        {/* Unread badge */}
+                        {totalUnread > 0 && (
+                            <View
+                                style={{
+                                    minWidth: 24,
+                                    height: 24,
+                                    borderRadius: 12,
+                                    backgroundColor: colors.error,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.white }}>
+                                    {totalUnread > 99 ? '99+' : totalUnread}
+                                </Text>
+                            </View>
+                        )}
                         <Ionicons name="chevron-forward" size={16} color={colors.textSubtle} />
                     </View>
                 </View>
@@ -505,21 +839,33 @@ export default function ClientBookingGroup({ group, filterStatus, onAccept, onRe
                 visible={sheetOpen}
                 transparent
                 animationType="slide"
+                statusBarTranslucent
                 onRequestClose={() => setSheetOpen(false)}
             >
-                <TouchableOpacity
-                    style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' }}
-                    activeOpacity={1}
-                    onPress={() => setSheetOpen(false)}
-                />
-                <DetailSheet
-                    group={group}
-                    filterStatus={filterStatus}
-                    onClose={() => setSheetOpen(false)}
-                    onAccept={onAccept}
-                    onReject={onReject}
-                    onComplete={onComplete}
-                />
+                <View style={{ flex: 1 }}>
+                    <TouchableOpacity
+                        style={{
+                            position: 'absolute',
+                            top: 0,
+                            right: 0,
+                            bottom: 0,
+                            left: 0,
+                            backgroundColor: 'rgba(0,0,0,0.45)',
+                        }}
+                        activeOpacity={1}
+                        onPress={() => setSheetOpen(false)}
+                    />
+                    <DetailSheet
+                        group={group}
+                        filterStatus={filterStatus}
+                        onClose={() => setSheetOpen(false)}
+                        onAccept={onAccept}
+                        onReject={onReject}
+                        onComplete={onComplete}
+                        onOpenChat={onOpenChat}
+                        unreadCountMap={unreadCountMap}
+                    />
+                </View>
             </Modal>
         </>
     );

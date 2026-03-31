@@ -1,7 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type { ClientProfileEditForm, User } from '@/types/authTypes';
-import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, PaymentInitiateResponse, PaymentStatusResponse } from '@/types/clientTypes';
+import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, BookingStatus, BulkPaymentInitiateRequest, BulkPaymentInitiateResponse, BulkPaymentStatusResponse, PaymentInitiateResponse, PaymentStatusResponse } from '@/types/clientTypes';
 import { mapApiBooking } from '@/types/clientTypes';
 
 export interface BookingStats {
@@ -274,5 +274,68 @@ export const clientService = {
             `${API_CONFIG.ENDPOINTS.PAYMENT.STATUS}${bookingId}/`,
         );
         return data;
+    },
+
+    /**
+     * Initiate one payment for multiple accepted bookings.
+     * POST /api/payment/bulk/initiate/
+     * Frontend sends only booking ids; backend calculates payable amount.
+     */
+    initiateBulkPayment: async (
+        input: BulkPaymentInitiateRequest,
+    ): Promise<BulkPaymentInitiateResponse> => {
+        const payload = {
+            booking_ids: input.bookingIds.map((id) => Number(id)),
+        };
+        const headers: Record<string, string> = {};
+        if (input.idempotencyKey) {
+            headers['Idempotency-Key'] = input.idempotencyKey;
+        }
+
+        const { data } = await apiClient.post(
+            API_CONFIG.ENDPOINTS.PAYMENT.BULK_INITIATE,
+            payload,
+            { headers },
+        );
+
+        const raw = (data?.data ?? data ?? {}) as Record<string, unknown>;
+        const payment_group_id = String(raw.payment_group_id ?? raw.paymentGroupId ?? raw.group_id ?? '');
+        const payment_url = String(raw.payment_url ?? raw.paymentUrl ?? '');
+
+        return {
+            payment_group_id,
+            payment_url,
+            pidx: typeof raw.pidx === 'string' ? raw.pidx : undefined,
+            amount: typeof raw.amount === 'number' ? raw.amount : Number(raw.amount ?? 0) || undefined,
+            currency: typeof raw.currency === 'string' ? raw.currency : undefined,
+            expires_at: typeof raw.expires_at === 'string' ? raw.expires_at : undefined,
+        };
+    },
+
+    /**
+     * Get payment status for a bulk payment group.
+     * GET /api/payment/bulk/status/{payment_group_id}/
+     */
+    getBulkPaymentStatus: async (paymentGroupId: string): Promise<BulkPaymentStatusResponse> => {
+        const { data } = await apiClient.get(
+            `${API_CONFIG.ENDPOINTS.PAYMENT.BULK_STATUS}${paymentGroupId}/`,
+        );
+
+        const raw = (data?.data ?? data ?? {}) as Record<string, unknown>;
+        const rawBookings = (
+            raw.bookings
+            ?? raw.items
+            ?? raw.booking_statuses
+            ?? []
+        ) as Array<Record<string, unknown>>;
+
+        return {
+            payment_group_id: String(raw.payment_group_id ?? raw.paymentGroupId ?? paymentGroupId),
+            status: String(raw.status ?? raw.group_status ?? 'initiated'),
+            bookings: rawBookings.map((item) => ({
+                bookingId: String(item.booking_id ?? item.bookingId ?? item.id ?? ''),
+                status: String(item.status ?? item.booking_status ?? 'initiated') as BookingStatus,
+            })),
+        };
     },
 };

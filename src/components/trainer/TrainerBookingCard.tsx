@@ -71,9 +71,11 @@ interface TrainerBookingCardProps {
     onAccept?: (id: string) => void;
     onReject?: (id: string) => void;
     onComplete?: (id: string) => void;
+    /** Unread message count for this session (shows badge if > 0). */
+    unreadCount?: number;
 }
 
-export default function TrainerBookingCard({ session, onAccept, onReject, onComplete }: TrainerBookingCardProps) {
+export default function TrainerBookingCard({ session, onAccept, onReject, onComplete, unreadCount }: TrainerBookingCardProps) {
     const showActions = session.status === 'pending' || session.status === 'confirmed';
 
     return (
@@ -116,22 +118,42 @@ export default function TrainerBookingCard({ session, onAccept, onReject, onComp
                         </Text>
                     </View>
 
-                    {/* Status badge */}
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            gap: 4,
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
-                            borderRadius: radius.full,
-                            backgroundColor: STATUS_BG[session.status],
-                        }}
-                    >
-                        <Ionicons name={STATUS_ICON[session.status]} size={12} color={STATUS_COLOR[session.status]} />
-                        <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[session.status] }}>
-                            {STATUS_LABEL[session.status]}
-                        </Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {/* Status badge */}
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                gap: 4,
+                                paddingHorizontal: 10,
+                                paddingVertical: 4,
+                                borderRadius: radius.full,
+                                backgroundColor: STATUS_BG[session.status],
+                            }}
+                        >
+                            <Ionicons name={STATUS_ICON[session.status]} size={12} color={STATUS_COLOR[session.status]} />
+                            <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[session.status] }}>
+                                {STATUS_LABEL[session.status]}
+                            </Text>
+                        </View>
+
+                        {/* Unread message badge (only for confirmed sessions) */}
+                        {session.status === 'confirmed' && unreadCount != null && unreadCount > 0 && (
+                            <View
+                                style={{
+                                    minWidth: 20,
+                                    height: 20,
+                                    borderRadius: 10,
+                                    backgroundColor: colors.error,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.white }}>
+                                    {unreadCount > 99 ? '99+' : unreadCount}
+                                </Text>
+                            </View>
+                        )}
                     </View>
                 </View>
 

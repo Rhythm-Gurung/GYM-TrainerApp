@@ -1,6 +1,7 @@
+import { chatEvents } from '@/lib/chatEvents';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -16,7 +17,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useConfirmBooking, useCancelTrainerBooking, useTrainerBookings } from '@/api/hooks/useTrainerBookings';
+import { useBookingChatSessions } from '@/api/hooks/useBookingChat';
+import { useCancelTrainerBooking, useConfirmBooking, useTrainerBookings } from '@/api/hooks/useTrainerBookings';
 import ClientBookingGroup, { type ClientGroup } from '@/components/trainer/ClientBookingGroup';
 import { colors, fontSize, radius } from '@/constants/theme';
 import {
@@ -33,16 +35,34 @@ const SLIDE = 30;
 const DUR = 300;
 
 export default function TrainerBookings() {
+    const router = useRouter();
     const tabBarHeight = useTabBarHeight();
     const { tab } = useLocalSearchParams<{ tab?: string }>();
 
     const { data, isLoading, isFetching, refetch } = useTrainerBookings();
+    const { data: chatSessions, refetch: refetchChatSessions } = useBookingChatSessions();
+    const refetchChatSessionsRef = useRef(refetchChatSessions);
+    useEffect(() => { refetchChatSessionsRef.current = refetchChatSessions; }, [refetchChatSessions]);
     const { mutateAsync: confirmBooking } = useConfirmBooking();
     const { mutateAsync: cancelTrainerBooking } = useCancelTrainerBooking();
 
     const [statusOverrides, setStatusOverrides] = useState<Record<string, TrainerSession['status']>>({});
     const [activeTab, setActiveTab] = useState<BookingFilterStatus>('pending');
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    // Real-time unread count cache: backend-sourced via polling + WebSocket patches
+    const [unreadOverrides, setUnreadOverrides] = useState<Record<string, number>>({});
+
+    // Create a map of sessionId -> unreadCount for quick lookup (from API + real-time patches)
+    const unreadCountMap = useMemo(() => {
+        const map: Record<string, number> = {};
+        chatSessions?.forEach((session) => {
+            const key = session.bookingId;
+            // Use real-time patch if available, else fall back to API value
+            map[key] = unreadOverrides[key] ?? session.unreadCount;
+        });
+        return map;
+    }, [chatSessions, unreadOverrides]);
 
     const listY = useSharedValue(SLIDE);
     const listOpacity = useSharedValue(0);
@@ -65,6 +85,27 @@ export default function TrainerBookings() {
             refetch().catch(() => { });
         }, [refetch]),
     );
+
+    // Refresh badge counts on screen focus (real-time updates come via useBadgeWebSocket in layout)
+    useFocusEffect(
+        useCallback(() => {
+            refetchChatSessionsRef.current().catch(() => { });
+        }, []),
+    );
+
+    // Listen for real-time unread updates via WebSocket
+    useEffect(() => {
+        const unsubscribe = chatEvents.on('unread_update', (update) => {
+            if (__DEV__) {
+                console.warn(`[TrainerBookings] WS unread patch: booking ${update.bookingId} -> ${update.unreadCount}`);
+            }
+            setUnreadOverrides((prev) => ({
+                ...prev,
+                [update.bookingId]: update.unreadCount,
+            }));
+        });
+        return unsubscribe;
+    }, []);
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
@@ -152,6 +193,16 @@ export default function TrainerBookings() {
         setStatusOverrides((prev) => ({ ...prev, [id]: 'completed' }));
         showSuccessToast('Session marked as completed');
     };
+
+    const handleOpenBookingChat = useCallback((session: TrainerSession) => {
+        router.push({
+            pathname: '/(tabs)/trainer/bookingChatRoom' as never,
+            params: {
+                bookingId: session.bookingId ?? session.id,
+                partnerName: session.clientName,
+            },
+        });
+    }, [router]);
 
     if (isLoading) {
         return (
@@ -244,6 +295,8 @@ export default function TrainerBookings() {
                             onAccept={handleAccept}
                             onReject={handleReject}
                             onComplete={handleComplete}
+                            onOpenChat={handleOpenBookingChat}
+                            unreadCountMap={unreadCountMap}
                         />
                     ))
                 ) : (

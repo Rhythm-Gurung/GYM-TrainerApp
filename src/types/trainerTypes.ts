@@ -62,10 +62,15 @@ export type TrainerSessionStatus =
     | 'pending'
     | 'accepted'
     | 'confirmed'
+    | 'in_progress'
     | 'cancelled'
     | 'refund_pending'
     | 'refunded'
-    | 'completed';
+    | 'completed'
+    | 'disputed'
+    | 'no_show_client'
+    | 'session_was_taken_but_not_end_by_client'
+    | 'missed';
 
 // Trainer Session (trainer-side view of a booking — shows client info)
 export interface TrainerSession {

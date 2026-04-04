@@ -1,7 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
 import { Text, View } from 'react-native';
 
 import { colors, fontSize, radius } from '@/constants/theme';
+import { resolveImageUrl } from '@/lib';
 import type { Review } from '@/types/clientTypes';
 
 interface ReviewCardProps {
@@ -21,6 +23,7 @@ export default function ReviewCard({ review }: ReviewCardProps) {
     const formattedDate = new Date(review.createdAt).toLocaleDateString('en-IN', {
         day: 'numeric', month: 'short', year: 'numeric',
     });
+    const avatarUrl = resolveImageUrl(review.clientAvatar);
 
     return (
         <View
@@ -36,21 +39,33 @@ export default function ReviewCard({ review }: ReviewCardProps) {
             {/* Header row */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {/* Avatar */}
-                <View
-                    style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: radius.sm,
-                        backgroundColor: colors.primaryLight,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                    }}
-                >
-                    <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.primary }}>
-                        {initials}
-                    </Text>
-                </View>
+                {avatarUrl ? (
+                    <ExpoImage
+                        source={{ uri: avatarUrl }}
+                        style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: radius.sm,
+                        }}
+                        contentFit="cover"
+                    />
+                ) : (
+                    <View
+                        style={{
+                            width: 40,
+                            height: 40,
+                            borderRadius: radius.sm,
+                            backgroundColor: colors.primaryLight,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                        }}
+                    >
+                        <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.primary }}>
+                            {initials}
+                        </Text>
+                    </View>
+                )}
 
                 {/* Name + date */}
                 <View style={{ flex: 1 }}>

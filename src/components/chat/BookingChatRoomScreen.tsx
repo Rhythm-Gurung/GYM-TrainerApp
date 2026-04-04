@@ -452,9 +452,9 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
             const sessions = await bookingChatService.getSessions();
             const activeSession = sessions.find((session) => session.bookingId === bookingId);
 
-            if (!activeSession || !activeSession.canChat || activeSession.bookingStatus !== 'confirmed') {
+            if (!activeSession || !activeSession.canChat || (activeSession.bookingStatus !== 'confirmed' && activeSession.bookingStatus !== 'in_progress')) {
                 setUiStateSafe('LOCKED');
-                setDisabledMessage('Chat is unavailable because this booking is not confirmed.');
+                setDisabledMessage('Chat is unavailable for this booking status.');
                 setBootLoading(false);
                 return;
             }

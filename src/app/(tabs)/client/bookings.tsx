@@ -2,42 +2,57 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Modal, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, RefreshControl, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import khaltiLogo from '../../../../assets/images/Khalti.png';
 
+import { useApiMutation } from '@/api/hooks/useApiMutation';
 import { useBookings, useCancelBooking, useInitiateBulkPayment, useInitiatePayment } from '@/api/hooks/useBookSession';
 import { useBookingChatSessions } from '@/api/hooks/useBookingChat';
 import { clientService } from '@/api/services/client.service';
+import ReviewModal from '@/components/client/ReviewModal';
 import TrainerBookingGroup, { type TrainerGroup } from '@/components/client/TrainerBookingGroup';
 import { colors, fontSize, radius } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { showErrorToast } from '@/lib';
+import { showErrorToast, showSuccessToast } from '@/lib';
 import { chatEvents } from '@/lib/chatEvents';
 import type { Booking } from '@/types/clientTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type BookingStatus = Booking['status'];
-type FilterValue = BookingStatus | 'all';
+type FilterValue = 'all' | 'active' | 'completed' | 'issues';
+
+// Status groupings for the minimalistic 4-tab approach
+const ACTIVE_STATUSES: BookingStatus[] = ['pending', 'accepted', 'confirmed', 'in_progress'];
+const COMPLETED_STATUSES: BookingStatus[] = ['completed'];
+const ISSUES_STATUSES: BookingStatus[] = ['disputed', 'no_show_client', 'session_was_taken_but_not_end_by_client', 'missed', 'cancelled', 'refund_pending', 'refunded'];
 
 // ─── Filter tabs ──────────────────────────────────────────────────────────────
 
 const STATUS_TABS: { label: string; value: FilterValue }[] = [
     { label: 'All', value: 'all' },
-    { label: 'Pending', value: 'pending' },
-    { label: 'Accepted', value: 'accepted' },
-    { label: 'Confirmed', value: 'confirmed' },
+    { label: 'Active', value: 'active' },
     { label: 'Completed', value: 'completed' },
-    { label: 'Cancelled', value: 'cancelled' },
+    { label: 'Issues', value: 'issues' },
 ];
+
+// Helper to check if a booking matches a filter
+function bookingMatchesFilter(status: BookingStatus, filter: FilterValue): boolean {
+    if (filter === 'all') return true;
+    if (filter === 'active') return ACTIVE_STATUSES.includes(status);
+    if (filter === 'completed') return COMPLETED_STATUSES.includes(status);
+    if (filter === 'issues') return ISSUES_STATUSES.includes(status);
+    return false;
+}
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function ClientBookings() {
     const router = useRouter();
     const tabBarHeight = useTabBarHeight();
-    const { tab } = useLocalSearchParams<{ tab?: string }>();
+    const { tab, bookingId, requestId } = useLocalSearchParams<{ tab?: string; bookingId?: string; requestId?: string }>();
     const [activeFilter, setActiveFilter] = useState<FilterValue>('all');
     const { authState } = useAuth();
 
@@ -48,6 +63,14 @@ export default function ClientBookings() {
     const { mutateAsync: initiateBulkPayment } = useInitiateBulkPayment();
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [confirmedBooking, setConfirmedBooking] = useState<Booking | null>(null);
+    const [isPaymentRedirecting, setIsPaymentRedirecting] = useState(false);
+
+    // Review modal state
+    const [reviewModalVisible, setReviewModalVisible] = useState(false);
+    const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
+
+    // Track reviews by booking ID (booking_id -> review_id)
+    const [reviewsByBooking, setReviewsByBooking] = useState<Record<string, string>>({});
 
     // Optimistic status overrides keyed by booking id
     const [statusOverrides, setStatusOverrides] = useState<Record<string, Booking['status']>>({});
@@ -73,6 +96,13 @@ export default function ClientBookings() {
                 setActiveFilter(tab as FilterValue);
             }
         }, [tab]),
+    );
+
+    // Refetch bookings data on screen focus (critical for session verification requests)
+    useFocusEffect(
+        useCallback(() => {
+            refetch().catch(() => { });
+        }, [refetch]),
     );
 
     // Refresh badge counts on screen focus (real-time updates come via useBadgeWebSocket in layout)
@@ -114,8 +144,10 @@ export default function ClientBookings() {
     }, [cancelBooking, refetch]);
 
     const handlePayNow = useCallback(async (booking: Booking) => {
+        setIsPaymentRedirecting(true);
         try {
             const { payment_url } = await initiatePayment(booking.id);
+            setIsPaymentRedirecting(false);
             await WebBrowser.openBrowserAsync(payment_url);
             // Browser closed — check payment result directly
             const result = await clientService.getPaymentStatus(booking.id);
@@ -131,17 +163,21 @@ export default function ClientBookings() {
                 showErrorToast('Payment was not completed. Please try again.');
             }
         } catch {
+            setIsPaymentRedirecting(false);
+            refetch().catch(() => { });
             // initiatePayment errors are shown by useApiMutation toast
         }
     }, [initiatePayment, refetch]);
 
     const handlePaySelected = useCallback(async (selectedBookings: Booking[]) => {
         if (selectedBookings.length === 0) return;
+
         if (selectedBookings.length === 1) {
             await handlePayNow(selectedBookings[0]);
             return;
         }
 
+        setIsPaymentRedirecting(true);
         try {
             const bookingIds = selectedBookings.map((b) => b.id);
             const idempotencyKey = `bulk-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
@@ -152,10 +188,12 @@ export default function ClientBookings() {
             });
 
             if (!bulkInit.payment_url || !bulkInit.payment_group_id) {
+                setIsPaymentRedirecting(false);
                 showErrorToast('Could not initiate bulk payment. Please try again.');
                 return;
             }
 
+            setIsPaymentRedirecting(false);
             await WebBrowser.openBrowserAsync(bulkInit.payment_url);
 
             const bulkStatus = await clientService.getBulkPaymentStatus(bulkInit.payment_group_id);
@@ -182,6 +220,8 @@ export default function ClientBookings() {
                 showErrorToast('Bulk payment was not completed. Please try again.');
             }
         } catch {
+            setIsPaymentRedirecting(false);
+            refetch().catch(() => { });
             // bulk payment errors are shown by useApiMutation toast when available
         }
     }, [handlePayNow, initiateBulkPayment, refetch]);
@@ -195,6 +235,79 @@ export default function ClientBookings() {
             },
         });
     }, [router]);
+
+    const handleLeaveReview = useCallback((booking: Booking) => {
+        setSelectedBookingForReview(booking);
+        setReviewModalVisible(true);
+    }, []);
+
+    const { mutateAsync: submitReview } = useApiMutation(
+        async ({ trainerId, bookingId: reviewBookingId, rating, comment }: { trainerId: string; bookingId: string; rating: number; comment: string }) => {
+            const response = await clientService.postReview(trainerId, reviewBookingId, rating, comment);
+            // After successful review submission, mark this booking as reviewed
+            setReviewsByBooking((prev) => ({ ...prev, [reviewBookingId]: 'submitted' }));
+            return response;
+        },
+        {
+            onSuccess: () => showSuccessToast('Thank you for your review!'),
+        },
+    );
+
+    const handleSubmitReview = useCallback(async (rating: number, comment: string) => {
+        if (!selectedBookingForReview) return;
+
+        await submitReview({
+            trainerId: selectedBookingForReview.trainerId,
+            bookingId: selectedBookingForReview.id,
+            rating,
+            comment,
+        });
+
+        setReviewModalVisible(false);
+        setSelectedBookingForReview(null);
+    }, [selectedBookingForReview, submitReview]);
+
+    const { mutateAsync: deleteReview } = useApiMutation(
+        async ({ trainerId, reviewId }: { trainerId: string; reviewId: string }) => {
+            await clientService.deleteReview(trainerId, reviewId);
+        },
+        {
+            onSuccess: () => showSuccessToast('Review deleted successfully'),
+        },
+    );
+
+    const handleDeleteReview = useCallback(async (booking: Booking) => {
+        const reviewId = reviewsByBooking[booking.id];
+        if (!reviewId) return;
+
+        Alert.alert(
+            'Delete Review',
+            'Are you sure you want to delete your review? This action cannot be undone.',
+            [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                    text: 'Delete',
+                    style: 'destructive',
+                    onPress: async () => {
+                        try {
+                            await deleteReview({
+                                trainerId: booking.trainerId,
+                                reviewId,
+                            });
+                            // Remove from local tracking
+                            setReviewsByBooking((prev) => {
+                                const updated = { ...prev };
+                                delete updated[booking.id];
+                                return updated;
+                            });
+                        } catch {
+                            // Error toast already shown by useApiMutation
+                        }
+                    },
+                },
+            ],
+        );
+    }, [reviewsByBooking, deleteReview]);
 
     // Apply status overrides on top of server data
     const allBookings = useMemo(
@@ -221,9 +334,17 @@ export default function ClientBookings() {
                 return acc;
             }, {}),
         );
+
         if (activeFilter === 'all') return groups;
-        return groups.filter((g) => g.bookings.some((b) => b.status === activeFilter));
-    }, [allBookings, activeFilter]);
+
+        // Filter groups by active filter using the helper function
+        // ALWAYS include the group containing focusBookingId for session verification
+        return groups.filter((g) => {
+            const hasMatchingStatus = g.bookings.some((b) => bookingMatchesFilter(b.status, activeFilter));
+            const hasFocusedBooking = bookingId && g.bookings.some((b) => b.id === bookingId);
+            return hasMatchingStatus || hasFocusedBooking;
+        });
+    }, [allBookings, activeFilter, bookingId]);
 
     return (
         <>
@@ -254,7 +375,10 @@ export default function ClientBookings() {
                             return (
                                 <TouchableOpacity
                                     key={statusTab.value}
-                                    onPress={() => setActiveFilter(statusTab.value)}
+                                    onPress={() => {
+                                        setActiveFilter(statusTab.value);
+                                        router.setParams({ tab: statusTab.value });
+                                    }}
                                     activeOpacity={0.75}
                                     style={{
                                         paddingHorizontal: 16,
@@ -312,7 +436,12 @@ export default function ClientBookings() {
                                     onPayNow={handlePayNow}
                                     onPaySelected={handlePaySelected}
                                     onOpenChat={handleOpenBookingChat}
+                                    onLeaveReview={handleLeaveReview}
+                                    onDeleteReview={handleDeleteReview}
+                                    reviewsByBooking={reviewsByBooking}
                                     unreadCountMap={unreadCountMap}
+                                    focusBookingId={bookingId}
+                                    focusRequestId={requestId}
                                 />
                             ))
                         ) : (
@@ -343,6 +472,59 @@ export default function ClientBookings() {
                 )}
 
             </SafeAreaView>
+
+            {/* ── Khalti redirect loading ──────────────────────────────────── */}
+            <Modal
+                visible={isPaymentRedirecting}
+                transparent
+                animationType="fade"
+                onRequestClose={() => { }}
+            >
+                <View style={{ flex: 1, backgroundColor: 'rgba(20, 18, 18, 0)', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+                    <View
+                        style={{
+                            backgroundColor: colors.white,
+                            borderRadius: radius.card,
+                            paddingHorizontal: 24,
+                            paddingVertical: 22,
+                            alignItems: 'center',
+                            gap: 14,
+                            width: '100%',
+                            maxWidth: 320,
+                            shadowColor: '#000',
+                            shadowOpacity: 0.18,
+                            shadowRadius: 18,
+                            shadowOffset: { width: 0, height: 10 },
+                            elevation: 8,
+                        }}
+                    >
+                        <View
+                            style={{
+                                width: 68,
+                                height: 68,
+                                borderRadius: 18,
+                                backgroundColor: colors.surface,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                overflow: 'hidden',
+                            }}
+                        >
+                            <Image
+                                source={khaltiLogo}
+                                style={{ width: 46, height: 46 }}
+                                resizeMode="contain"
+                            />
+                        </View>
+                        <ActivityIndicator size="small" color={colors.primary} />
+                        <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary, textAlign: 'center' }}>
+                            Redirecting to Khalti...
+                        </Text>
+                        <Text style={{ fontSize: fontSize.tag, color: colors.textMuted, textAlign: 'center', lineHeight: 18 }}>
+                            Please wait while we open the payment gateway.
+                        </Text>
+                    </View>
+                </View>
+            </Modal>
 
             {/* ── Payment success modal ─────────────────────────────────────── */}
             <Modal
@@ -460,6 +642,26 @@ export default function ClientBookings() {
                     </View>
                 </View>
             </Modal>
+
+            {/* ── Review Modal ───────────────────────────────────────────────── */}
+            {selectedBookingForReview && (
+                <ReviewModal
+                    visible={reviewModalVisible}
+                    onClose={() => {
+                        setReviewModalVisible(false);
+                        setSelectedBookingForReview(null);
+                    }}
+                    onSubmit={handleSubmitReview}
+                    trainerName={selectedBookingForReview.trainerName}
+                    bookingDate={new Date(selectedBookingForReview.date).toLocaleDateString('en-IN', {
+                        weekday: 'short',
+                        day: 'numeric',
+                        month: 'short',
+                        year: 'numeric',
+                    })}
+                    bookingTime={`${selectedBookingForReview.startTime} - ${selectedBookingForReview.endTime}`}
+                />
+            )}
         </>
     );
 }

@@ -13,7 +13,6 @@ import {
     type AuthContextType,
     type AuthState,
     type ChangePasswordInput,
-    type GoogleLoginResponse,
     type LoginResponse,
     type RegisterInput,
     type RegisterResponse,
@@ -104,53 +103,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         [],
     );
 
-    const googleLogin = useCallback(
-        async (idToken: string): Promise<GoogleLoginResponse> => {
-            try {
-                const data = await authService.googleLogin(idToken);
-
-                // For Google login, always save the email
-                const savedEmailsStr = await AsyncStorage.getItem('saved_emails');
-                const savedEmails: string[] = savedEmailsStr ? JSON.parse(savedEmailsStr) : [];
-                const normalizedEmail = data.user.email.trim().toLowerCase();
-
-                // Remove email if it already exists (to move it to the front)
-                const filteredEmails = savedEmails.filter((e) => e !== normalizedEmail);
-                // Add current email to the beginning of the array
-                const updatedEmails = [normalizedEmail, ...filteredEmails].slice(0, 10);
-
-                await AsyncStorage.multiSet([
-                    ['access_token', data.tokens.access],
-                    ['refresh_token', data.tokens.refresh],
-                    ['user', JSON.stringify(data.user)],
-                    ['saved_emails', JSON.stringify(updatedEmails)],
-                ]);
-
-                setAuthState({
-                    token: data.tokens.access,
-                    authenticated: true,
-                    user: data.user,
-                });
-
-                return data;
-            } catch (error: unknown) {
-                if (error && typeof error === 'object' && 'response' in error) {
-                    const axiosError = error as {
-                        response?: { status?: number; data?: unknown };
-                        message?: string;
-                    };
-                    console.error('Google login error:', {
-                        status: axiosError.response?.status,
-                        data: axiosError.response?.data,
-                        message: axiosError.message,
-                    });
-                }
-                throw error;
-            }
-        },
-        [],
-    );
-
     const register = useCallback(
         async (input: RegisterInput): Promise<RegisterResponse> => authService.register(input),
         [],
@@ -228,7 +180,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             authState,
             loading,
             login,
-            googleLogin,
             register,
             logout,
             forgotPassword,
@@ -244,7 +195,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             authState,
             loading,
             login,
-            googleLogin,
             register,
             logout,
             forgotPassword,

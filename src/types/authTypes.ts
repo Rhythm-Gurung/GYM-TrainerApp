@@ -7,14 +7,6 @@ export interface LoginResponse {
   user: User;
 }
 
-export interface GoogleLoginResponse {
-  tokens: {
-    access: string;
-    refresh: string;
-  };
-  user: User;
-}
-
 export interface RegisterResponse {
   detail: string;
   status: boolean;
@@ -70,7 +62,6 @@ export interface AuthContextType {
   authState: AuthState;
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<LoginResponse>;
-  googleLogin: (idToken: string) => Promise<GoogleLoginResponse>;
   register: (data: RegisterInput) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<{ message: string }>;

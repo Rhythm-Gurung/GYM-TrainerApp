@@ -1,9 +1,12 @@
 import { useBadgeWebSocket } from '@/api/hooks/useBadgeWebSocket';
+import { useBookingChatSessions } from '@/api/hooks/useBookingChat';
 import { colors, fontSize } from '@/constants/theme';
+import { chatEvents } from '@/lib/chatEvents';
 import { Ionicons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
-import { Tabs } from 'expo-router';
-import { Platform, StyleSheet, View } from 'react-native';
+import { Tabs, useGlobalSearchParams, usePathname } from 'expo-router';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface TabBarIconProps {
@@ -11,12 +14,41 @@ interface TabBarIconProps {
     focused: boolean;
 }
 
+interface BookingsTabIconProps extends TabBarIconProps {
+    badgeCount: number;
+    showBadge: boolean;
+}
+
 function DashboardIcon({ color, focused }: TabBarIconProps) {
     return <Ionicons name={focused ? 'grid' : 'grid-outline'} color={color} size={24} />;
 }
 
-function BookingsIcon({ color, focused }: TabBarIconProps) {
-    return <Ionicons name={focused ? 'calendar' : 'calendar-outline'} color={color} size={24} />;
+function BookingsTabIcon({ color, focused, badgeCount, showBadge }: BookingsTabIconProps) {
+    return (
+        <View style={{ width: 28, height: 28, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name={focused ? 'calendar' : 'calendar-outline'} color={color} size={24} />
+            {showBadge && badgeCount > 0 && (
+                <View
+                    style={{
+                        position: 'absolute',
+                        top: -2,
+                        right: -10,
+                        minWidth: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        paddingHorizontal: 4,
+                        backgroundColor: colors.error,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Text style={{ fontSize: 10, fontWeight: '700', color: colors.white }}>
+                        {badgeCount > 99 ? '99+' : badgeCount}
+                    </Text>
+                </View>
+            )}
+        </View>
+    );
 }
 
 function EarningsIcon({ color, focused }: TabBarIconProps) {
@@ -70,6 +102,41 @@ export const TAB_BAR_BASE_HEIGHT = 56;
 export default function TrainerTabLayout() {
     const insets = useSafeAreaInsets();
     useBadgeWebSocket();
+    const pathname = usePathname();
+    const params = useGlobalSearchParams<{ tab?: string }>();
+    const { data: bookingChatSessions } = useBookingChatSessions();
+    const [unreadOverrides, setUnreadOverrides] = useState<Record<string, number>>({});
+
+    useEffect(() => {
+        const unsubscribe = chatEvents.on('unread_update', (update) => {
+            setUnreadOverrides((prev) => ({
+                ...prev,
+                [update.bookingId]: update.unreadCount,
+            }));
+        });
+        return unsubscribe;
+    }, []);
+
+    const bookingsUnreadCount = useMemo(() => (
+        bookingChatSessions?.reduce((total, session) => {
+            const unreadCount = unreadOverrides[session.bookingId] ?? session.unreadCount;
+            return total + unreadCount;
+        }, 0) ?? 0
+    ), [bookingChatSessions, unreadOverrides]);
+
+    const hideBookingsBadge = pathname.endsWith('/bookings') && params.tab === 'active';
+    const showBookingsBadge = bookingsUnreadCount > 0 && !hideBookingsBadge;
+
+    const renderBookingsIcon = useCallback(
+        (props: TabBarIconProps) => (
+            <BookingsTabIcon
+                {...props}
+                badgeCount={bookingsUnreadCount}
+                showBadge={showBookingsBadge}
+            />
+        ),
+        [bookingsUnreadCount, showBookingsBadge],
+    );
 
     return (
         <Tabs
@@ -108,7 +175,7 @@ export default function TrainerTabLayout() {
                 name="bookings"
                 options={{
                     headerShown: false,
-                    tabBarIcon: BookingsIcon,
+                    tabBarIcon: renderBookingsIcon,
                     tabBarLabel: 'Bookings',
                 }}
             />
@@ -139,6 +206,10 @@ export default function TrainerTabLayout() {
             {/* Hidden screens — no tab bar entry */}
             <Tabs.Screen
                 name="notifications"
+                options={{ href: null, headerShown: false }}
+            />
+            <Tabs.Screen
+                name="reviews"
                 options={{ href: null, headerShown: false }}
             />
             <Tabs.Screen

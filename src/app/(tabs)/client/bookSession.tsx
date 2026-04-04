@@ -16,7 +16,6 @@ import {
     BookingSummarySection,
     FixedCta,
     MonthCalendarSection,
-    NotesSection,
     TimeSlotsSection,
     TrainerCard,
     WeeklyScheduleSection,
@@ -48,9 +47,6 @@ function chunk<T>(arr: T[], size: number): T[][] {
     return out;
 }
 
-function toMonFirst(jsDay: number): number {
-    return (jsDay + 6) % 7;
-}
 
 function formatDateSummary(dateStr: string): string {
     const d = new Date(dateStr);
@@ -64,6 +60,11 @@ function scheduleHasSlot(date: string, startTime: string, schedule: ApiScheduleD
     return day?.slots.some((s) => s.start_time === startTime) ?? false;
 }
 
+function toTimeMinutes(time: string): number {
+    const [h, m] = time.split(':').map(Number);
+    return h * 60 + m;
+}
+
 interface CalCell {
     key: string;
     day: number | null;
@@ -74,7 +75,7 @@ function toDateStr(year: number, month: number, day: number): string {
 }
 
 function buildCalendarCells(year: number, month: number): CalCell[] {
-    const offset = toMonFirst(new Date(year, month - 1, 1).getDay());
+    const offset = new Date(year, month - 1, 1).getDay();
     const daysInMonth = new Date(year, month, 0).getDate();
     const cells: CalCell[] = [
         ...Array.from({ length: offset }, (_, i) => ({ key: `blank-pre-${i}`, day: null })),
@@ -122,8 +123,9 @@ export default function BookSession() {
     const [chosenMode, setChosenMode] = useState<BookingSessionMode>('online');
     const [selectedSlot, setSelectedSlot] = useState<ApiAvailableSlot | null>(null);
     const [slotPerDate, setSlotPerDate] = useState<Map<string, ApiAvailableSlot>>(() => new Map());
-    const [notes, setNotes] = useState('');
     const [isBooking, setIsBooking] = useState(false);
+    const [todaySlotsData, setTodaySlotsData] = useState<ApiAvailableSlotsResponse | null>(null);
+    const [nowTick, setNowTick] = useState(() => Date.now());
 
     const isPerDateMode = selectedDates.size > 0 && selectedDates.size <= PER_DATE_LIMIT;
 
@@ -172,6 +174,13 @@ export default function BookSession() {
         }
     }, [activeSlotDate, refetchAvailableDates, refetchSlots, refetchTrainer]);
 
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setNowTick(Date.now());
+        }, 60_000);
+        return () => clearInterval(timer);
+    }, []);
+
     // ── Entrance animations ───────────────────────────────────────────────────
     const cardY = useSharedValue<number>(BOOKING_ANIM.SLIDE);
     const dateY = useSharedValue<number>(BOOKING_ANIM.SLIDE);
@@ -210,9 +219,50 @@ export default function BookSession() {
     // ── Derived calendar values ───────────────────────────────────────────────
     const todayStr = useMemo(() => today.toISOString().split('T')[0], [today]);
     const availableSet = useMemo(() => new Set(availableDates ?? []), [availableDates]);
+
+    useEffect(() => {
+        let active = true;
+
+        const loadTodaySlots = async () => {
+            if (!availableSet.has(todayStr)) {
+                if (active) setTodaySlotsData(null);
+                return;
+            }
+
+            const resp = await getAvailableSlotsForDate(todayStr);
+            if (!active) return;
+            setTodaySlotsData(resp);
+        };
+
+        loadTodaySlots().catch(() => {
+            if (active) setTodaySlotsData(null);
+        });
+
+        return () => {
+            active = false;
+        };
+    }, [availableSet, getAvailableSlotsForDate, isRefreshing, todayStr]);
+
+    const hasUpcomingTodaySlot = useMemo(() => {
+        if (!availableSet.has(todayStr)) return false;
+        if (!todaySlotsData?.is_available) return false;
+
+        const now = new Date(nowTick);
+        const nowMinutes = now.getHours() * 60 + now.getMinutes();
+        return todaySlotsData.slots.some((s) => !s.is_booked && toTimeMinutes(s.start_time) >= nowMinutes);
+    }, [availableSet, nowTick, todaySlotsData, todayStr]);
+
+    const calendarAvailableSet = useMemo(() => {
+        const set = new Set(availableSet);
+        if (!hasUpcomingTodaySlot) {
+            set.delete(todayStr);
+        }
+        return set;
+    }, [availableSet, hasUpcomingTodaySlot, todayStr]);
+
     const availableCountThisMonth = useMemo(
-        () => (availableDates ?? []).filter((d) => d >= todayStr).length,
-        [availableDates, todayStr],
+        () => Array.from(calendarAvailableSet).filter((d) => d >= todayStr).length,
+        [calendarAvailableSet, todayStr],
     );
     const calCells = useMemo(() => buildCalendarCells(calYear, calMonth), [calYear, calMonth]);
     const isCurrentMonth = calYear === today.getFullYear() && calMonth === today.getMonth() + 1;
@@ -220,8 +270,31 @@ export default function BookSession() {
     const bookedSet = useMemo(() => {
         const set = new Set<string>();
         if (!id || !clientBookings) return set;
+        const activeBookingStatuses = new Set(['pending', 'accepted', 'confirmed', 'in_progress']);
         clientBookings.forEach((b) => {
-            if (b.trainerId === id && b.status !== 'cancelled') {
+            if (b.trainerId === id && activeBookingStatuses.has(b.status)) {
+                set.add(b.date);
+            }
+        });
+        return set;
+    }, [clientBookings, id]);
+
+    const missedSet = useMemo(() => {
+        const set = new Set<string>();
+        if (!id || !clientBookings) return set;
+        clientBookings.forEach((b) => {
+            if (b.trainerId === id && (b.status === 'missed' || b.status === 'no_show_client')) {
+                set.add(b.date);
+            }
+        });
+        return set;
+    }, [clientBookings, id]);
+
+    const completedSet = useMemo(() => {
+        const set = new Set<string>();
+        if (!id || !clientBookings) return set;
+        clientBookings.forEach((b) => {
+            if (b.trainerId === id && (b.status === 'completed' || b.status === 'session_was_taken_but_not_end_by_client')) {
                 set.add(b.date);
             }
         });
@@ -232,7 +305,7 @@ export default function BookSession() {
     const handleDatePress = useCallback((day: number) => {
         const dateStr = toDateStr(calYear, calMonth, day);
         if (dateStr < todayStr) return;
-        if (!availableSet.has(dateStr)) return;
+        if (!calendarAvailableSet.has(dateStr)) return;
 
         setSelectedDates((prev) => {
             const next = new Set(prev);
@@ -254,7 +327,7 @@ export default function BookSession() {
             }
             return dateStr;
         });
-    }, [availableSet, calMonth, calYear, todayStr]);
+    }, [calMonth, calYear, calendarAvailableSet, todayStr]);
 
     const handleChipPress = useCallback((dateStr: string) => {
         setActiveSlotDate(dateStr);
@@ -383,7 +456,6 @@ export default function BookSession() {
         if (!id) return;
 
         const dates = Array.from(selectedDates).sort();
-        const notesValue = notes.trim() || undefined;
 
         /** Computes session cost: hourlyRate × duration in hours */
         const calcAmount = (startTime: string, endTime: string): number => {
@@ -408,7 +480,6 @@ export default function BookSession() {
                         start_time: s.start_time,
                         end_time: s.end_time,
                         session_mode: modeForDate,
-                        notes: notesValue,
                         total_amount: calcAmount(s.start_time, s.end_time),
                     });
                 });
@@ -421,7 +492,6 @@ export default function BookSession() {
                             start_time: selectedSlot!.start_time,
                             end_time: selectedSlot!.end_time,
                             session_mode: effectiveMode,
-                            notes: notesValue,
                             total_amount: calcAmount(selectedSlot!.start_time, selectedSlot!.end_time),
                         }),
                     ),
@@ -440,7 +510,7 @@ export default function BookSession() {
         } finally {
             setIsBooking(false);
         }
-    }, [chosenMode, effectiveMode, getAvailableSlotsForDate, id, isPerDateMode, isReady, notes, router, selectedDates, selectedSlot, slotPerDate, trainer]);
+    }, [chosenMode, effectiveMode, getAvailableSlotsForDate, id, isPerDateMode, isReady, router, selectedDates, selectedSlot, slotPerDate, trainer]);
 
     if (isTrainerLoading || !trainer) {
         return (
@@ -526,8 +596,10 @@ export default function BookSession() {
                     availableCountThisMonth={availableCountThisMonth}
                     hasAvailableDatesInfo={availableDates != null}
                     calCells={calCells}
-                    availableSet={availableSet}
+                    availableSet={calendarAvailableSet}
                     bookedSet={bookedSet}
+                    missedSet={missedSet}
+                    completedSet={completedSet}
                     todayStr={todayStr}
                     selectedDates={selectedDates}
                     activeSlotDate={activeSlotDate}
@@ -555,8 +627,6 @@ export default function BookSession() {
                         formatDateSummary={formatDateSummary}
                     />
                 )}
-
-                <NotesSection notes={notes} setNotes={setNotes} />
 
                 <BookingSummarySection
                     isReady={isReady}

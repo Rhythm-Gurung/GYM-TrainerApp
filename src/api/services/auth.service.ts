@@ -2,7 +2,6 @@ import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type {
     ChangePasswordInput,
-    GoogleLoginResponse,
     LoginResponse,
     RegisterInput,
     RegisterResponse,
@@ -18,14 +17,6 @@ export const authService = {
                 email: email?.trim().toLowerCase() || '',
                 password: password?.trim() || '',
             },
-        );
-        return data;
-    },
-
-    googleLogin: async (idToken: string): Promise<GoogleLoginResponse> => {
-        const { data } = await apiClient.post<GoogleLoginResponse>(
-            API_CONFIG.ENDPOINTS.AUTH.GOOGLE_LOGIN,
-            { id_token: idToken },
         );
         return data;
     },

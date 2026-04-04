@@ -59,7 +59,7 @@ export default function BookingChatSessionsScreen({ chatRole }: BookingChatSessi
 
     const sessions = useMemo(
         () => (data ?? [])
-            .filter((session) => session.canChat && session.bookingStatus === 'confirmed')
+            .filter((session) => session.canChat && (session.bookingStatus === 'confirmed' || session.bookingStatus === 'in_progress'))
             .sort((a, b) => (
                 new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime()
             )),
@@ -87,20 +87,31 @@ export default function BookingChatSessionsScreen({ chatRole }: BookingChatSessi
         <SafeAreaView className="flex-1 bg-background" edges={['top', 'left', 'right']}>
             <View
                 style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
                     paddingHorizontal: 20,
                     paddingTop: 10,
                     paddingBottom: 12,
                     borderBottomWidth: 1,
                     borderBottomColor: colors.surfaceBorder,
                     backgroundColor: colors.white,
+                    gap: 12,
                 }}
             >
-                <Text style={{ fontSize: fontSize.header, fontWeight: '800', color: colors.textPrimary }}>
-                    Booking Chats
-                </Text>
-                <Text style={{ fontSize: fontSize.tag, color: colors.textMuted, marginTop: 4 }}>
-                    Available only for confirmed bookings
-                </Text>
+                <TouchableOpacity
+                    onPress={() => router.back()}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                >
+                    <Ionicons name="chevron-back" size={24} color={colors.textPrimary} />
+                </TouchableOpacity>
+                <View style={{ flex: 1 }}>
+                    <Text style={{ fontSize: fontSize.header, fontWeight: '800', color: colors.textPrimary }}>
+                        Booking Chats
+                    </Text>
+                    <Text style={{ fontSize: fontSize.tag, color: colors.textMuted, marginTop: 4 }}>
+                        Available for confirmed and in-progress bookings
+                    </Text>
+                </View>
             </View>
 
             {isLoading ? (

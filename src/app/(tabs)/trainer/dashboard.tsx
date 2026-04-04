@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     RefreshControl,
@@ -21,6 +22,7 @@ import { useApiQuery } from '@/api/hooks/useApiQuery';
 import { useTrainerBookings, useTrainerProfile } from '@/api/hooks/useTrainerBookings';
 import { useTrainerEarnings } from '@/api/hooks/useTrainerEarnings';
 import { notificationService } from '@/api/services/notification.service';
+import { trainerService } from '@/api/services/trainer.service';
 import StatsCard from '@/components/client/StatsCard';
 import TrainerSessionCard from '@/components/trainer/TrainerSessionCard';
 import ChatFab from '@/components/ui/ChatFab';
@@ -31,6 +33,7 @@ import {
     STAT_CARD_CONFIGS,
 } from '@/constants/trainerDashboard.constants';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
+import type { ApiReviewsResponse } from '@/types/clientTypes';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -62,6 +65,38 @@ export default function TrainerDashboard() {
         { staleTime: 30 * 1000, showErrorToast: false },
     );
 
+    // Fetch reviews to calculate unseen count
+    const { data: reviewsData, refetch: refetchReviews } = useApiQuery<ApiReviewsResponse>(
+        'trainer-reviews-dashboard',
+        async () => {
+            const data = await trainerService.getReviews();
+            return data as ApiReviewsResponse;
+        },
+        { showErrorToast: false },
+    );
+
+    const [lastSeenReviewTime, setLastSeenReviewTime] = useState<number>(0);
+
+    // Load last seen review timestamp from storage
+    useEffect(() => {
+        AsyncStorage.getItem('trainer_reviews_last_seen')
+            .then((value) => {
+                if (value) {
+                    setLastSeenReviewTime(Number(value));
+                }
+            })
+            .catch(() => { /* non-critical */ });
+    }, []);
+
+    // Calculate unseen review count
+    const unseenReviewCount = useMemo(() => {
+        if (!reviewsData?.data || lastSeenReviewTime === 0) return 0;
+        return reviewsData.data.filter((review) => {
+            const createdAt = new Date(review.created_at).getTime();
+            return createdAt > lastSeenReviewTime;
+        }).length;
+    }, [reviewsData, lastSeenReviewTime]);
+
     const unreadCount = notificationStats?.unreadCount ?? 0;
     const fabBottom = tabBarHeight + 16;
 
@@ -92,11 +127,21 @@ export default function TrainerDashboard() {
 
     useFocusEffect(
         useCallback(() => {
-            refetchEarnings().catch(() => { });
-            refetchBookings().catch(() => { });
-            refetchProfile().catch(() => { });
-            refetchNotificationStats().catch(() => { });
-        }, [refetchEarnings, refetchBookings, refetchProfile, refetchNotificationStats]),
+            // Silent refetches on focus - errors handled by useApiQuery
+            refetchEarnings().catch(() => { /* handled by query */ });
+            refetchBookings().catch(() => { /* handled by query */ });
+            refetchProfile().catch(() => { /* handled by query */ });
+            refetchNotificationStats().catch(() => { /* handled by query */ });
+            refetchReviews().catch(() => { /* handled by query */ });
+            // Reload last seen time when screen comes into focus
+            AsyncStorage.getItem('trainer_reviews_last_seen')
+                .then((value) => {
+                    if (value) {
+                        setLastSeenReviewTime(Number(value));
+                    }
+                })
+                .catch(() => { /* non-critical */ });
+        }, [refetchEarnings, refetchBookings, refetchProfile, refetchNotificationStats, refetchReviews]),
     );
 
     const handleRefresh = useCallback(async () => {
@@ -229,6 +274,8 @@ export default function TrainerDashboard() {
                                     icon={cfg.icon}
                                     iconColor={colors.trainerPrimary}
                                     iconBg={colors.trainerMuted}
+                                    onPress={cfg.id === 'rating' ? () => router.push('/trainer/reviews' as never) : undefined}
+                                    badgeCount={cfg.id === 'rating' ? unseenReviewCount : undefined}
                                 />
                             </View>
                         ))}

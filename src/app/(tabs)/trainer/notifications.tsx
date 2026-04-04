@@ -13,33 +13,51 @@ import type { AppNotification } from '@/types/clientTypes';
 const DUR = 280;
 const STAGGER = 55;
 
-type BookingTab = 'all' | 'pending' | 'accepted' | 'confirmed' | 'completed' | 'cancelled';
+// New minimalistic 4-tab approach
+type BookingTab = 'all' | 'active' | 'completed' | 'issues';
+
+// Map old statuses to new tabs
+function mapStatusToTab(status: string): BookingTab {
+    const s = status.toLowerCase();
+    // Active statuses
+    if (['pending', 'accepted', 'confirmed', 'in_progress'].includes(s)) return 'active';
+    // Completed
+    if (s === 'completed') return 'completed';
+    // Issues
+    if (['disputed', 'no_show_client', 'session_was_taken_but_not_end_by_client', 'missed', 'cancelled', 'refund_pending', 'refunded'].includes(s)) return 'issues';
+    return 'all';
+}
 
 function inferBookingTabFromText(text: string): BookingTab {
     const t = text.toLowerCase();
-    if (t.includes('cancel')) return 'cancelled';
 
-    const saysCompletePayment = t.includes('complete payment') || t.includes('complete your payment') || t.includes('complete the payment');
-    const saysPaymentCompleted = t.includes('payment completed') || t.includes('payment complete') || t.includes('payment successful') || t.includes('payment received');
+    // Issues
+    if (t.includes('cancel') || t.includes('dispute') || t.includes('no show') || t.includes('missed') || t.includes('end missed') || t.includes('refund')) return 'issues';
 
+    // Completed
+    if (t.includes('session completed') || t.includes('completed session') || t.includes('marked as completed')) return 'completed';
+
+    // Active - pending, accepted, confirmed, in_progress
     if (
         t.includes('accept')
         || t.includes('approved')
         || t.includes('pay now')
         || t.includes('pending payment')
         || t.includes('awaiting payment')
-        || saysCompletePayment
-    ) return 'accepted';
+        || t.includes('complete payment')
+        || t.includes('payment completed')
+        || t.includes('confirm')
+        || t.includes('paid')
+        || t.includes('in progress')
+        || t.includes('session started')
+        || t.includes('start verification')
+        || t.includes('start session request')
+        || t.includes('end verification')
+        || t.includes('end session request')
+        || t.includes('pending')
+        || t.includes('request')
+    ) return 'active';
 
-    if (t.includes('confirm') || t.includes('paid') || saysPaymentCompleted) return 'confirmed';
-
-    if (
-        t.includes('session completed')
-        || t.includes('completed session')
-        || t.includes('marked as completed')
-    ) return 'completed';
-
-    if (t.includes('pending') || t.includes('request')) return 'pending';
     return 'all';
 }
 
@@ -47,8 +65,13 @@ function getBookingTabFromNotification(n: AppNotification): BookingTab {
     const raw = (n.data ?? {}) as Record<string, unknown>;
     const statusVal = raw.booking_status ?? raw.status ?? raw.tab;
     const status = typeof statusVal === 'string' ? statusVal.toLowerCase() : '';
-    const known: BookingTab[] = ['all', 'pending', 'accepted', 'confirmed', 'completed', 'cancelled'];
-    if (known.includes(status as BookingTab)) return status as BookingTab;
+
+    // Try to map the status directly
+    if (status) {
+        return mapStatusToTab(status);
+    }
+
+    // Fall back to text inference
     return inferBookingTabFromText(`${n.title} ${n.message}`);
 }
 function TrainerNotificationList({
@@ -178,7 +201,17 @@ export default function TrainerNotifications() {
 
         if (n.type === 'booking') {
             const tab = getBookingTabFromNotification(n);
-            router.push({ pathname: '/trainer/bookings', params: { tab } } as never);
+            const raw = (n.data ?? {}) as Record<string, unknown>;
+            const bookingId = raw.booking_id ?? raw.bookingId;
+            const requestId = raw.request_id ?? raw.requestId;
+            router.push({
+                pathname: '/trainer/bookings',
+                params: {
+                    tab,
+                    bookingId: typeof bookingId === 'string' || typeof bookingId === 'number' ? String(bookingId) : undefined,
+                    requestId: typeof requestId === 'string' || typeof requestId === 'number' ? String(requestId) : undefined,
+                },
+            } as never);
         }
     }, [notifications, refetch, router]);
 

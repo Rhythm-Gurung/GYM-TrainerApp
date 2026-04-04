@@ -14,18 +14,15 @@ import Toast from 'react-native-toast-message';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authService } from '@/api/services/auth.service';
-import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
 import { Button, InputField } from '@/components/ui/formComponent';
 import { PasswordRequirements } from '@/components/ui/PasswordRequirements';
 import { colors, fontSize, shadow } from '@/constants/theme';
-import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 import { type TrainerRegisterFormData, trainerRegisterSchema } from '@/schemas/trainer.schemas';
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
 export default function TrainerRegisterPage() {
   const router = useRouter();
-  const { handleGoogleSignIn, isLoading: isGoogleLoading, isReady } = useGoogleSignIn();
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -170,24 +167,6 @@ export default function TrainerRegisterPage() {
                 onPress={handleSubmit(onSubmit)}
                 loading={isSubmitting}
                 disabled={isSubmitting}
-              />
-            </View>
-
-            {/* ── Divider ─────────────────────────────────────── */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
-              <View style={{ flex: 1, height: 1, backgroundColor: colors.surfaceBorder }} />
-              <Text style={{ fontSize: fontSize.tag, color: colors.textSubtle, marginHorizontal: 12, fontWeight: '500' }}>
-                Or continue with
-              </Text>
-              <View style={{ flex: 1, height: 1, backgroundColor: colors.surfaceBorder }} />
-            </View>
-
-            {/* ── Google ──────────────────────────────────────── */}
-            <View style={{ alignItems: 'center', marginBottom: 24 }}>
-              <GoogleSignInButton
-                onPress={handleGoogleSignIn}
-                loading={isGoogleLoading}
-                disabled={!isReady || isGoogleLoading}
               />
             </View>
 

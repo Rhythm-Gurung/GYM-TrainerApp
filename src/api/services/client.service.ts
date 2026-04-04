@@ -1,7 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type { ClientProfileEditForm, User } from '@/types/authTypes';
-import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, BookingStatus, BulkPaymentInitiateRequest, BulkPaymentInitiateResponse, BulkPaymentStatusResponse, PaymentInitiateResponse, PaymentStatusResponse } from '@/types/clientTypes';
+import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, BookingStatus, BulkPaymentInitiateRequest, BulkPaymentInitiateResponse, BulkPaymentStatusResponse, PaymentInitiateResponse, PaymentStatusResponse, SessionRequest, SessionRequestAction, SessionRequestStatus, SessionRequestType } from '@/types/clientTypes';
 import { mapApiBooking } from '@/types/clientTypes';
 
 export interface BookingStats {
@@ -17,6 +17,62 @@ export interface TrainerListParams {
     min_price?: number;
     max_price?: number;
     verified?: boolean;
+}
+
+function mapApiSessionRequest(raw: Record<string, unknown>, bookingId: string): SessionRequest {
+    const requestType = String(raw.request_type ?? raw.type ?? 'start').toLowerCase() as SessionRequestType;
+    const statusRaw = String(raw.status ?? 'pending').toLowerCase();
+    const roleRaw = String(raw.action_by_role ?? raw.responded_by_role ?? '').toLowerCase();
+    let actionByRole: 'client' | 'trainer' | undefined;
+    if (roleRaw === 'client') {
+        actionByRole = 'client';
+    } else if (roleRaw === 'trainer') {
+        actionByRole = 'trainer';
+    }
+    const statusMap: Record<string, SessionRequestStatus> = {
+        pending: 'pending',
+        accepted: 'accepted',
+        reject: 'rejected',
+        rejected: 'rejected',
+        expired: 'expired',
+        cancelled: 'cancelled',
+        canceled: 'cancelled',
+    };
+    const status = statusMap[statusRaw] ?? 'pending';
+    const actionRaw = raw.action;
+    const action = actionRaw === 'accept' || actionRaw === 'reject'
+        ? (actionRaw as SessionRequestAction)
+        : undefined;
+
+    const requestedByRoleRaw = String(
+        raw.requested_by_role ?? 
+        raw.requestedByRole ?? 
+        raw.requested_by ?? 
+        raw.requestedBy ?? 
+        raw.actor_role ?? 
+        raw.actorRole ?? 
+        raw.requester_role ?? 
+        raw.requesterRole ?? 
+        raw.initiated_by_role ??
+        raw.initiatedByRole ??
+        'trainer'
+    ).toLowerCase().trim();
+
+    const requestedByRole = requestedByRoleRaw === 'client' ? 'client' : 'trainer';
+
+    return {
+        id: String(raw.id ?? ''),
+        bookingId: String(raw.booking_id ?? raw.bookingId ?? bookingId),
+        requestType: requestType === 'end' ? 'end' : 'start',
+        status,
+        requestedByRole,
+        actionByRole,
+        action,
+        reason: typeof raw.reason === 'string' ? raw.reason : undefined,
+        expiresAt: typeof raw.expires_at === 'string' ? raw.expires_at : undefined,
+        createdAt: String(raw.created_at ?? raw.createdAt ?? new Date().toISOString()),
+        respondedAt: typeof raw.responded_at === 'string' ? raw.responded_at : undefined,
+    };
 }
 
 export const clientService = {
@@ -101,13 +157,25 @@ export const clientService = {
     },
 
     /**
-     * Post a review for a trainer.
-     * Returns 409 if the authenticated user already reviewed this trainer.
+     * Post a review for a trainer tied to a completed booking.
+     * Backend validates: booking exists, user is client, status is completed, no duplicate.
+     * Returns 400 (validation), 403 (not client), 404 (booking not found), 409 (duplicate).
      */
-    postReview: async (id: string, rating: number, comment: string): Promise<void> => {
+    postReview: async (id: string, bookingId: string, rating: number, comment: string): Promise<void> => {
         await apiClient.post(
             `${API_CONFIG.ENDPOINTS.CLIENT.TRAINER_REVIEWS}${id}/reviews/`,
-            { rating, comment },
+            { booking_id: Number(bookingId), rating, comment },
+        );
+    },
+
+    /**
+     * Delete a review for a trainer.
+     * Backend should validate: review exists, user is the reviewer.
+     * DELETE /api/trainers/{trainer_id}/reviews/{review_id}/
+     */
+    deleteReview: async (trainerId: string, reviewId: string): Promise<void> => {
+        await apiClient.delete(
+            `${API_CONFIG.ENDPOINTS.CLIENT.TRAINER_REVIEWS}${trainerId}/reviews/${reviewId}/`,
         );
     },
 
@@ -251,6 +319,49 @@ export const clientService = {
             reason ? { reason } : {},
         );
         return mapApiBooking(data?.data ?? data);
+    },
+
+    /**
+     * List booking verification requests for a booking.
+     * GET /api/bookings/{booking_id}/session-requests/
+     */
+    getSessionRequests: async (bookingId: string): Promise<SessionRequest[]> => {
+        const { data } = await apiClient.get(`${API_CONFIG.ENDPOINTS.CLIENT.BOOKINGS}${bookingId}/session-requests/`);
+
+        // Backend returns: { status: true, data: { booking_id, booking_status, requests: [...] } }
+        // We need to extract the 'requests' array from data.data
+        const responseData = data?.data;
+        const raw = (
+            responseData?.requests ?? // Backend structure: data.data.requests
+            responseData?.results ?? // Alternative: data.data.results
+            responseData ?? // Fallback: data.data (if it's the array itself)
+            data?.results ?? // Alternative: data.results
+            data ?? // Fallback: data directly
+            []
+        ) as Array<Record<string, unknown>>;
+
+        const mapped = Array.isArray(raw) ? raw.map((item) => mapApiSessionRequest(item, bookingId)) : [];
+
+        return mapped;
+    },
+
+    /**
+     * Respond to a booking verification request as a client.
+     * POST /api/bookings/{booking_id}/session-requests/{request_id}/respond/
+     */
+    respondSessionRequest: async (
+        bookingId: string,
+        requestId: string,
+        action: SessionRequestAction,
+        reason?: string,
+    ): Promise<SessionRequest> => {
+        const payload = action === 'reject' && reason ? { action, reason } : { action };
+        const { data } = await apiClient.post(
+            `${API_CONFIG.ENDPOINTS.CLIENT.BOOKINGS}${bookingId}/session-requests/${requestId}/respond/`,
+            payload,
+        );
+        const raw = (data?.data ?? data ?? {}) as Record<string, unknown>;
+        return mapApiSessionRequest(raw, bookingId);
     },
 
     /**

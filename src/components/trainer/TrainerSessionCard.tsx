@@ -12,40 +12,60 @@ const STATUS_LABEL: Record<SessionStatus, string> = {
     pending: 'Pending',
     accepted: 'Accepted',
     confirmed: 'Confirmed',
+    in_progress: 'In Progress',
     completed: 'Completed',
     cancelled: 'Cancelled',
     refund_pending: 'Refund Pending',
     refunded: 'Refunded',
+    disputed: 'Disputed',
+    no_show_client: 'No Show',
+    session_was_taken_but_not_end_by_client: 'Not Ended',
+    missed: 'Missed',
 };
 
 const STATUS_COLOR: Record<SessionStatus, string> = {
     pending: colors.accent,
     accepted: colors.trainerPrimary,
     confirmed: colors.trainerPrimary,
+    in_progress: colors.trainerPrimary,
     completed: colors.success,
     cancelled: colors.error,
     refund_pending: colors.accent,
     refunded: colors.success,
+    disputed: colors.error,
+    no_show_client: colors.error,
+    session_was_taken_but_not_end_by_client: colors.accent,
+    missed: colors.error,
 };
 
 const STATUS_BG: Record<SessionStatus, string> = {
     pending: colors.accentBg,
     accepted: colors.trainerMuted,
     confirmed: colors.trainerMuted,
+    in_progress: colors.trainerMuted,
     completed: colors.statusNewBg,
     cancelled: colors.errorBg,
     refund_pending: colors.accentBg,
     refunded: colors.statusNewBg,
+    disputed: colors.errorBg,
+    no_show_client: colors.errorBg,
+    session_was_taken_but_not_end_by_client: colors.accentBg,
+    missed: colors.errorBg,
 };
 
 const STATUS_ICON: Record<SessionStatus, keyof typeof Ionicons.glyphMap> = {
     pending: 'time-outline',
     accepted: 'checkmark-circle-outline',
     confirmed: 'checkmark-circle-outline',
+    in_progress: 'play-circle-outline',
     completed: 'trophy-outline',
     cancelled: 'close-circle-outline',
     refund_pending: 'refresh-outline',
     refunded: 'checkmark-done-outline',
+    disputed: 'alert-circle-outline',
+    no_show_client: 'person-remove-outline',
+    session_was_taken_but_not_end_by_client: 'hourglass-outline',
+    missed: 'ban-outline',
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

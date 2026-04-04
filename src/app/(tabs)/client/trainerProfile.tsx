@@ -88,9 +88,14 @@ export default function TrainerProfile() {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { width, height: screenHeight } = useWindowDimensions();
-    const { id } = useLocalSearchParams<{ id: string }>();
+    const { id, tab: initialTab } = useLocalSearchParams<{ id: string; tab?: string }>();
 
-    const [activeTab, setActiveTab] = useState<TabType>('About');
+    const [activeTab, setActiveTab] = useState<TabType>(() => {
+         if (initialTab && TABS.includes(initialTab as TabType)) {
+            return initialTab as TabType;
+        }
+        return 'About';
+    });
     const { authState } = useAuth();
     const authHeader = { Authorization: `Bearer ${authState.token ?? ''}` };
 
@@ -554,21 +559,6 @@ export default function TrainerProfile() {
                                     size={20}
                                     color={currentFavoriteState ? colors.heartActive : colors.white}
                                 />
-                            </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={{
-                                    width: 40,
-                                    height: 40,
-                                    borderRadius: radius.sm,
-                                    backgroundColor: colors.white15,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                                activeOpacity={0.7}
-                                onPress={() => { /* TODO: share */ }}
-                            >
-                                <Ionicons name="share-outline" size={20} color={colors.white} />
                             </TouchableOpacity>
                         </View>
                     </View>

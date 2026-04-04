@@ -5,13 +5,13 @@ import { colors, fontSize, radius } from '@/constants/theme';
 import type { ApiScheduleDay } from '@/types/clientTypes';
 
 const SCHEDULE_DAYS = [
+    { key: 'Sun', jsDay: 0 },
     { key: 'Mon', jsDay: 1 },
     { key: 'Tue', jsDay: 2 },
     { key: 'Wed', jsDay: 3 },
     { key: 'Thu', jsDay: 4 },
     { key: 'Fri', jsDay: 5 },
     { key: 'Sat', jsDay: 6 },
-    { key: 'Sun', jsDay: 0 },
 ] as const;
 
 export function WeeklyScheduleSection({

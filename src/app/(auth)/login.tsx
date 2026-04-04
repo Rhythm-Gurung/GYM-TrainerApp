@@ -18,11 +18,9 @@ import {
 import setuLogo from '../../../assets/images/SETu.png';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import GoogleSignInButton from '@/components/auth/GoogleSignInButton';
 import { Button, InputField } from '@/components/ui/formComponent';
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
-import { useGoogleSignIn } from '@/hooks/useGoogleSignIn';
 import { useOnboarding } from '@/hooks/useOnboarding';
 import { getErrorMessage, getErrorStatus, showErrorToast, showSuccessToast } from '@/lib';
 import { type LoginFormData, loginSchema } from '@/schemas/auth.schemas';
@@ -39,7 +37,6 @@ export default function LoginPage() {
     const { resetOnboarding } = useOnboarding();
 
     const { login } = useAuth();
-    const { handleGoogleSignIn, isLoading: isGoogleLoading, isReady } = useGoogleSignIn();
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [rememberEmail, setRememberEmail] = useState(false);
     const [savedEmail, setSavedEmail] = useState<string>('');
@@ -267,24 +264,6 @@ export default function LoginPage() {
                                 onPress={handleSubmit(onSubmit)}
                                 loading={isSubmitting}
                             />
-
-                            {/* Divider */}
-                            <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 20 }}>
-                                <View style={{ flex: 1, height: 1, backgroundColor: colors.surfaceBorder }} />
-                                <Text style={{ fontSize: fontSize.tag, color: colors.textSubtle, marginHorizontal: 12, fontWeight: '500' }}>
-                                    Or continue with
-                                </Text>
-                                <View style={{ flex: 1, height: 1, backgroundColor: colors.surfaceBorder }} />
-                            </View>
-
-                            {/* Google sign-in */}
-                            <View style={{ alignItems: 'center' }}>
-                                <GoogleSignInButton
-                                    onPress={handleGoogleSignIn}
-                                    loading={isGoogleLoading}
-                                    disabled={!isReady || isGoogleLoading}
-                                />
-                            </View>
 
                             {/* Sign up row */}
                             <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 20 }}>

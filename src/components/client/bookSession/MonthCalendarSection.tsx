@@ -15,13 +15,13 @@ const MONTH_LABELS_LONG = [
 ] as const;
 
 const CAL_DAYS = [
+    { key: 'Sun', label: 'Sun' },
     { key: 'Mon', label: 'Mon' },
     { key: 'Tue', label: 'Tue' },
     { key: 'Wed', label: 'Wed' },
     { key: 'Thu', label: 'Thu' },
     { key: 'Fri', label: 'Fri' },
     { key: 'Sat', label: 'Sat' },
-    { key: 'Sun', label: 'Sun' },
 ] as const;
 
 export function MonthCalendarSection({
@@ -36,6 +36,8 @@ export function MonthCalendarSection({
     calCells,
     availableSet,
     bookedSet,
+    missedSet,
+    completedSet,
     todayStr,
     selectedDates,
     activeSlotDate,
@@ -54,6 +56,8 @@ export function MonthCalendarSection({
     calCells: CalCell[];
     availableSet: Set<string>;
     bookedSet: Set<string>;
+    missedSet: Set<string>;
+    completedSet: Set<string>;
     todayStr: string;
     selectedDates: Set<string>;
     activeSlotDate: string | null;
@@ -171,7 +175,12 @@ export function MonthCalendarSection({
                             if (!cell.day) {
                                 return false;
                             }
-                            return bookedSet.has(cell.key) || (availableSet.has(cell.key) && cell.key >= todayStr);
+                            return (
+                                bookedSet.has(cell.key)
+                                || missedSet.has(cell.key)
+                                || completedSet.has(cell.key)
+                                || (availableSet.has(cell.key) && cell.key >= todayStr)
+                            );
                         });
                         return (
                             <View
@@ -198,6 +207,8 @@ export function MonthCalendarSection({
                                     const isPast = dateStr < todayStr;
                                     const isToday = dateStr === todayStr;
                                     const isBooked = bookedSet.has(dateStr);
+                                    const isMissed = missedSet.has(dateStr);
+                                    const isCompleted = completedSet.has(dateStr);
                                     const tappable = isAvailable && !isPast;
 
                                     let cellBg = 'transparent';
@@ -210,6 +221,14 @@ export function MonthCalendarSection({
                                         cellBg = colors.statusNewBg;
                                         cellBorder = 1;
                                         cellBorderColor = colors.success;
+                                    } else if (isMissed) {
+                                        cellBg = colors.errorBg;
+                                        cellBorder = 1;
+                                        cellBorderColor = colors.error;
+                                    } else if (isCompleted) {
+                                        cellBg = colors.accentBg;
+                                        cellBorder = 1;
+                                        cellBorderColor = colors.accent;
                                     } else if (isAvailable && !isPast) {
                                         cellBg = colors.primarySurface;
                                         cellBorder = 1;
@@ -225,7 +244,11 @@ export function MonthCalendarSection({
                                     if (isSelected) {
                                         dayColor = colors.white;
                                     } else if (isBooked) {
-                                        dayColor = isPast ? colors.textMuted : colors.successDark;
+                                        dayColor = colors.successDark;
+                                    } else if (isMissed) {
+                                        dayColor = colors.error;
+                                    } else if (isCompleted) {
+                                        dayColor = colors.accent;
                                     } else if (isAvailable && !isPast) {
                                         dayColor = colors.primary;
                                     } else {
@@ -278,7 +301,28 @@ export function MonthCalendarSection({
                                                         height: 4,
                                                         borderRadius: 2,
                                                         backgroundColor: colors.success,
-                                                        opacity: isPast ? 0.6 : 1,
+                                                    }}
+                                                />
+                                            )}
+
+                                            {isMissed && !isSelected && (
+                                                <View
+                                                    style={{
+                                                        width: 4,
+                                                        height: 4,
+                                                        borderRadius: 2,
+                                                        backgroundColor: colors.error,
+                                                    }}
+                                                />
+                                            )}
+
+                                            {isCompleted && !isSelected && (
+                                                <View
+                                                    style={{
+                                                        width: 4,
+                                                        height: 4,
+                                                        borderRadius: 2,
+                                                        backgroundColor: colors.accent,
                                                     }}
                                                 />
                                             )}
@@ -389,6 +433,58 @@ export function MonthCalendarSection({
                         />
                         <Text style={{ fontSize: fontSize.badge, color: colors.textSubtle }}>
                             Unavailable
+                        </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View
+                            style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 4,
+                                backgroundColor: colors.errorBg,
+                                borderWidth: 1,
+                                borderColor: colors.error,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: 4,
+                                    height: 4,
+                                    borderRadius: 2,
+                                    backgroundColor: colors.error,
+                                }}
+                            />
+                        </View>
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textSubtle }}>
+                            Missed
+                        </Text>
+                    </View>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                        <View
+                            style={{
+                                width: 14,
+                                height: 14,
+                                borderRadius: 4,
+                                backgroundColor: colors.accentBg,
+                                borderWidth: 1,
+                                borderColor: colors.accent,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <View
+                                style={{
+                                    width: 4,
+                                    height: 4,
+                                    borderRadius: 2,
+                                    backgroundColor: colors.accent,
+                                }}
+                            />
+                        </View>
+                        <Text style={{ fontSize: fontSize.badge, color: colors.textSubtle }}>
+                            Completed
                         </Text>
                     </View>
                 </View>

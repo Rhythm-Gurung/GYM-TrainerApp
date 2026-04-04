@@ -137,12 +137,3 @@ export function useApiQuery<TData>(
         isFetching,
     };
 }
-
-// Utility to invalidate cache
-export function invalidateQuery(queryKey: string): void {
-    queryCache.delete(queryKey);
-}
-
-export function invalidateAllQueries(): void {
-    queryCache.clear();
-}

@@ -1,17 +1,33 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import khaltiLogo from '../../../assets/images/Khalti.png';
 
 import { useTrainerDetail } from '@/api/hooks/useBookSession';
+import BookingVerificationPanel from '@/components/ui/BookingVerificationPanel';
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { resolveImageUrl } from '@/lib';
 import type { Booking, BookingStatus } from '@/types/clientTypes';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+// Status groupings for the minimalistic 4-tab approach
+const ACTIVE_STATUSES: BookingStatus[] = ['pending', 'accepted', 'confirmed', 'in_progress'];
+const COMPLETED_STATUSES: BookingStatus[] = ['completed'];
+const ISSUES_STATUSES: BookingStatus[] = ['disputed', 'no_show_client', 'session_was_taken_but_not_end_by_client', 'missed', 'cancelled', 'refund_pending', 'refunded'];
+
+// Helper to check if a booking matches a filter
+function bookingMatchesFilter(status: BookingStatus, filter: string): boolean {
+    if (filter === 'all') return true;
+    if (filter === 'active') return ACTIVE_STATUSES.includes(status);
+    if (filter === 'completed') return COMPLETED_STATUSES.includes(status);
+    if (filter === 'issues') return ISSUES_STATUSES.includes(status);
+    // Fallback for direct status match (backwards compatibility)
+    return status === filter;
+}
 
 export interface TrainerGroup {
     trainerId: string;
@@ -25,8 +41,13 @@ const STATUS_LABEL: Record<BookingStatus, string> = {
     pending: 'Pending',
     accepted: 'Accepted',
     confirmed: 'Confirmed',
+    in_progress: 'In Progress',
     completed: 'Completed',
+    disputed: 'Disputed',
     cancelled: 'Cancelled',
+    no_show_client: 'No Show',
+    session_was_taken_but_not_end_by_client: 'End Missed',
+    missed: 'Missed',
     refund_pending: 'Refund Pending',
     refunded: 'Refunded',
 };
@@ -35,8 +56,13 @@ const STATUS_COLOR: Record<BookingStatus, string> = {
     pending: colors.accent,
     accepted: colors.primary,
     confirmed: colors.primary,
+    in_progress: colors.action,
     completed: colors.success,
+    disputed: colors.error,
     cancelled: colors.error,
+    no_show_client: colors.warning,
+    session_was_taken_but_not_end_by_client: colors.warning,
+    missed: colors.warning,
     refund_pending: colors.accent,
     refunded: colors.success,
 };
@@ -45,8 +71,13 @@ const STATUS_BG: Record<BookingStatus, string> = {
     pending: colors.accentBg,
     accepted: colors.primaryMuted,
     confirmed: colors.primaryMuted,
+    in_progress: colors.actionBg,
     completed: colors.statusNewBg,
+    disputed: colors.errorBg,
     cancelled: colors.errorBg,
+    no_show_client: colors.accentBg,
+    session_was_taken_but_not_end_by_client: colors.accentBg,
+    missed: colors.accentBg,
     refund_pending: colors.accentBg,
     refunded: colors.statusNewBg,
 };
@@ -55,14 +86,30 @@ const STATUS_ICON: Record<BookingStatus, keyof typeof Ionicons.glyphMap> = {
     pending: 'time-outline',
     accepted: 'checkmark-circle-outline',
     confirmed: 'checkmark-circle-outline',
+    in_progress: 'play-circle-outline',
     completed: 'trophy-outline',
+    disputed: 'warning-outline',
     cancelled: 'close-circle-outline',
+    no_show_client: 'alert-circle-outline',
+    session_was_taken_but_not_end_by_client: 'alert-circle-outline',
+    missed: 'alert-circle-outline',
     refund_pending: 'refresh-outline',
     refunded: 'checkmark-done-outline',
 };
 
 const STATUS_PRIORITY: BookingStatus[] = [
-    'pending', 'accepted', 'confirmed', 'completed', 'refund_pending', 'refunded', 'cancelled',
+    'pending',
+    'accepted',
+    'confirmed',
+    'in_progress',
+    'completed',
+    'disputed',
+    'no_show_client',
+    'session_was_taken_but_not_end_by_client',
+    'missed',
+    'refund_pending',
+    'refunded',
+    'cancelled',
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -103,14 +150,19 @@ function getDateRange(bookings: Booking[]): string {
 
 // ─── Detail Sheet ─────────────────────────────────────────────────────────────
 
-function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySelected, onOpenChat, trainerAvatar, unreadCountMap }: {
+function DetailSheet({ group, filterStatus, focusBookingId, focusRequestId, onClose, onCancel, onPayNow, onPaySelected, onOpenChat, onLeaveReview, onDeleteReview, reviewsByBooking, trainerAvatar, unreadCountMap }: {
     group: TrainerGroup;
     filterStatus: string;
+    focusBookingId?: string;
+    focusRequestId?: string;
     onClose: () => void;
     onCancel: (id: string) => Promise<void> | void;
     onPayNow: (booking: Booking) => Promise<void> | void;
     onPaySelected: (bookings: Booking[]) => Promise<void> | void;
     onOpenChat: (booking: Booking) => void;
+    onLeaveReview: (booking: Booking) => void;
+    onDeleteReview: (booking: Booking) => void;
+    reviewsByBooking: Record<string, string>;
     trainerAvatar?: string;
     unreadCountMap?: Record<string, number>;
 }) {
@@ -118,24 +170,29 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
     const insets = useSafeAreaInsets();
     const visibleBookings = filterStatus === 'all'
         ? group.bookings
-        : group.bookings.filter((b) => b.status === filterStatus);
+        : group.bookings.filter((b) => bookingMatchesFilter(b.status, filterStatus));
     const totalAmount = visibleBookings.reduce((sum, b) => sum + b.totalAmount, 0);
     const sorted = [...visibleBookings].sort((a, b) => a.date.localeCompare(b.date));
-    const confirmedBookings = sorted.filter((b) => b.status === 'confirmed');
-    const primaryConfirmedBooking = confirmedBookings[0] ?? null;
+    const activeChatBookings = sorted.filter((b) => b.status === 'confirmed' || b.status === 'in_progress');
+    const primaryConfirmedBooking = activeChatBookings[0] ?? null;
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedBookingIds, setSelectedBookingIds] = useState<Set<string>>(() => new Set());
     const [isBulkPaying, setIsBulkPaying] = useState(false);
     const [isBulkCancelling, setIsBulkCancelling] = useState(false);
 
+    const scrollViewRef = useRef<ScrollView>(null);
+    const hasFocusScrolled = useRef(false);
+
     const acceptedBookings = sorted.filter((b) => b.status === 'accepted');
     const acceptedIds = acceptedBookings.map((b) => b.id);
     const cancellableBookings = sorted.filter((b) => b.status === 'pending' || b.status === 'accepted');
-    const selectableIds = filterStatus === 'accepted' ? acceptedIds : cancellableBookings.map((b) => b.id);
+    // For bulk selection, check if we're in active filter with accepted bookings
+    const isActiveFilterWithAccepted = filterStatus === 'active' && acceptedBookings.length > 0;
+    const selectableIds = isActiveFilterWithAccepted ? acceptedIds : cancellableBookings.map((b) => b.id);
     const selectedCount = selectedBookingIds.size;
     const allSelectableSelected = selectableIds.length > 0
         && selectableIds.every((id) => selectedBookingIds.has(id));
-    const isAcceptedSelection = filterStatus === 'accepted';
+    const isAcceptedSelection = isActiveFilterWithAccepted;
     const selectedAcceptedTotal = acceptedBookings.reduce((sum, booking) => (
         selectedBookingIds.has(booking.id) ? sum + booking.totalAmount : sum
     ), 0);
@@ -259,7 +316,7 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
                 <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.surfaceBorder }} />
             </View>
 
-            {filterStatus === 'confirmed' && primaryConfirmedBooking && (
+            {(filterStatus === 'active' || filterStatus === 'all') && primaryConfirmedBooking && (
                 <View style={{ paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 }}>
                     <TouchableOpacity
                         onPress={() => {
@@ -399,6 +456,7 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
 
             {/* Booking list */}
             <ScrollView
+                ref={scrollViewRef}
                 style={{ marginTop: 6 }}
                 contentContainerStyle={{
                     paddingHorizontal: 22,
@@ -411,16 +469,23 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
                     const cancellable = booking.status === 'pending' || booking.status === 'accepted';
                     const selectable = selectableIds.includes(booking.id);
                     const isSelected = selectedBookingIds.has(booking.id);
+                    const isFocusedBooking = focusBookingId === booking.id;
                     return (
                         <View
                             key={booking.id}
+                            onLayout={isFocusedBooking ? (e) => {
+                                if (!hasFocusScrolled.current) {
+                                    hasFocusScrolled.current = true;
+                                    scrollViewRef.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true });
+                                }
+                            } : undefined}
                             style={{
                                 backgroundColor: colors.surface,
                                 borderRadius: radius.card,
                                 padding: 18,
                                 marginBottom: 16,
                                 borderWidth: 1,
-                                borderColor: colors.surfaceBorder,
+                                borderColor: isFocusedBooking ? colors.primary : colors.surfaceBorder,
                             }}
                         >
                             {/* Date + status + unread badge */}
@@ -465,7 +530,7 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
                                             {STATUS_LABEL[booking.status]}
                                         </Text>
                                     </View>
-                                    {booking.status === 'confirmed' && unreadCountMap && unreadCountMap[booking.id] != null && unreadCountMap[booking.id] > 0 && (
+                                    {(booking.status === 'confirmed' || booking.status === 'in_progress') && unreadCountMap && unreadCountMap[booking.id] != null && unreadCountMap[booking.id] > 0 && (
                                         <View
                                             style={{
                                                 minWidth: 20,
@@ -574,6 +639,91 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
                                     </Text>
                                 </TouchableOpacity>
                             )}
+
+                            {/* Review section — only for completed bookings */}
+                            {booking.status === 'completed' && !selectionMode && (
+                                reviewsByBooking[booking.id] ? (
+                                    // Review already sent - show status + delete button
+                                    <View style={{ marginTop: 14, gap: 8 }}>
+                                        {/* Review Sent status button */}
+                                        <TouchableOpacity
+                                            disabled
+                                            style={{
+                                                height: 42,
+                                                borderRadius: radius.md,
+                                                backgroundColor: colors.surface,
+                                                borderWidth: 1.5,
+                                                borderColor: colors.success,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexDirection: 'row',
+                                                gap: 8,
+                                            }}
+                                        >
+                                            <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.success }}>
+                                                Review Sent
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        {/* Delete review button */}
+                                        <TouchableOpacity
+                                            onPress={() => {
+                                                onClose();
+                                                onDeleteReview(booking);
+                                            }}
+                                            activeOpacity={0.8}
+                                            style={{
+                                                height: 40,
+                                                borderRadius: radius.md,
+                                                borderWidth: 1.5,
+                                                borderColor: colors.error,
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                flexDirection: 'row',
+                                                gap: 5,
+                                            }}
+                                        >
+                                            <Ionicons name="trash-outline" size={14} color={colors.error} />
+                                            <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.error }}>
+                                                Delete Review
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                ) : (
+                                    // No review yet - show Leave Review button
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            onClose();
+                                            onLeaveReview(booking);
+                                        }}
+                                        activeOpacity={0.8}
+                                        style={{
+                                            marginTop: 14,
+                                            height: 42,
+                                            borderRadius: radius.md,
+                                            backgroundColor: colors.primary,
+                                            alignItems: 'center',
+                                            justifyContent: 'center',
+                                            flexDirection: 'row',
+                                            gap: 8,
+                                        }}
+                                    >
+                                        <Ionicons name="star-outline" size={16} color={colors.white} />
+                                        <Text style={{ fontSize: fontSize.badge, fontWeight: '700', color: colors.white }}>
+                                            Leave Review
+                                        </Text>
+                                    </TouchableOpacity>
+                                )
+                            )}
+
+                            <BookingVerificationPanel
+                                bookingId={booking.id}
+                                bookingDate={booking.date}
+                                bookingStatus={booking.status}
+                                viewerRole="client"
+                                focusRequestId={focusRequestId}
+                            />
                         </View>
                     );
                 })}
@@ -675,23 +825,39 @@ function DetailSheet({ group, filterStatus, onClose, onCancel, onPayNow, onPaySe
 
 // ─── Summary Card ─────────────────────────────────────────────────────────────
 
-export default function TrainerBookingGroup({ group, filterStatus, onCancel, onPayNow, onPaySelected, onOpenChat, unreadCountMap }: {
+export default function TrainerBookingGroup({ group, filterStatus, onCancel, onPayNow, onPaySelected, onOpenChat, onLeaveReview, onDeleteReview, reviewsByBooking, unreadCountMap, focusBookingId, focusRequestId }: {
     group: TrainerGroup;
     filterStatus: string;
     onCancel: (id: string) => Promise<void> | void;
     onPayNow: (booking: Booking) => Promise<void> | void;
     onPaySelected: (bookings: Booking[]) => Promise<void> | void;
     onOpenChat: (booking: Booking) => void;
+    onLeaveReview: (booking: Booking) => void;
+    onDeleteReview: (booking: Booking) => void;
+    reviewsByBooking: Record<string, string>;
     unreadCountMap?: Record<string, number>;
+    focusBookingId?: string;
+    focusRequestId?: string;
 }) {
     const { authState } = useAuth();
-    const [sheetOpen, setSheetOpen] = useState(false);
+    const [sheetOpen, setSheetOpen] = useState(() => (
+        Boolean(focusBookingId && group.bookings.some((booking) => booking.id === focusBookingId))
+    ));
+
+    // Auto-open sheet when navigating to a specific booking (e.g., from notification)
+    useEffect(() => {
+        if (!focusBookingId || !group.bookings.some((booking) => booking.id === focusBookingId)) return;
+
+        setTimeout(() => {
+            setSheetOpen(true);
+        }, 0);
+    }, [focusBookingId, focusRequestId, group.bookings, group.trainerId, group.trainerName]);
 
     const { data: trainerDetail } = useTrainerDetail(group.trainerId);
 
     const visibleBookings = filterStatus === 'all'
         ? group.bookings
-        : group.bookings.filter((b) => b.status === filterStatus);
+        : group.bookings.filter((b) => bookingMatchesFilter(b.status, filterStatus));
 
     const counts = getStatusCounts(visibleBookings);
     const dateRange = getDateRange(visibleBookings);
@@ -795,27 +961,10 @@ export default function TrainerBookingGroup({ group, filterStatus, onCancel, onP
                 {/* Status summary + total */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1, marginRight: 8 }}>
-                        {filterStatus === 'all' ? (
-                            (STATUS_PRIORITY.filter((s) => (counts[s] ?? 0) > 0) as BookingStatus[]).map((status) => (
-                                <View
-                                    key={status}
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        paddingHorizontal: 8,
-                                        paddingVertical: 3,
-                                        borderRadius: radius.full,
-                                        backgroundColor: STATUS_BG[status],
-                                    }}
-                                >
-                                    <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[status] }}>
-                                        {`${counts[status]} ${STATUS_LABEL[status]}`}
-                                    </Text>
-                                </View>
-                            ))
-                        ) : (
+                        {/* Always show status breakdown badges */}
+                        {(STATUS_PRIORITY.filter((s) => (counts[s] ?? 0) > 0) as BookingStatus[]).map((status) => (
                             <View
+                                key={status}
                                 style={{
                                     flexDirection: 'row',
                                     alignItems: 'center',
@@ -823,20 +972,14 @@ export default function TrainerBookingGroup({ group, filterStatus, onCancel, onP
                                     paddingHorizontal: 8,
                                     paddingVertical: 3,
                                     borderRadius: radius.full,
-                                    backgroundColor: STATUS_BG[filterStatus as BookingStatus] ?? colors.surface,
+                                    backgroundColor: STATUS_BG[status],
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        fontSize: fontSize.caption,
-                                        fontWeight: '600',
-                                        color: STATUS_COLOR[filterStatus as BookingStatus] ?? colors.textMuted,
-                                    }}
-                                >
-                                    {`${visibleBookings.length} ${STATUS_LABEL[filterStatus as BookingStatus] ?? filterStatus}`}
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[status] }}>
+                                    {`${counts[status]} ${STATUS_LABEL[status]}`}
                                 </Text>
                             </View>
-                        )}
+                        ))}
                     </View>
                     <Text style={{ fontSize: fontSize.badge, fontWeight: '600', color: colors.textSecondary }}>
                         {`₹${totalAmount.toLocaleString('en-IN')}`}
@@ -867,11 +1010,16 @@ export default function TrainerBookingGroup({ group, filterStatus, onCancel, onP
                     <DetailSheet
                         group={group}
                         filterStatus={filterStatus}
+                        focusBookingId={focusBookingId}
+                        focusRequestId={focusRequestId}
                         onClose={() => setSheetOpen(false)}
                         onCancel={onCancel}
                         onPayNow={onPayNow}
                         onPaySelected={onPaySelected}
                         onOpenChat={onOpenChat}
+                        onLeaveReview={onLeaveReview}
+                        onDeleteReview={onDeleteReview}
+                        reviewsByBooking={reviewsByBooking}
                         trainerAvatar={resolvedTrainerAvatar}
                         unreadCountMap={unreadCountMap}
                     />

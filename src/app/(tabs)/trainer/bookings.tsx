@@ -22,6 +22,7 @@ import { useCancelTrainerBooking, useConfirmBooking, useTrainerBookings } from '
 import ClientBookingGroup, { type ClientGroup } from '@/components/trainer/ClientBookingGroup';
 import { colors, fontSize, radius } from '@/constants/theme';
 import {
+    sessionMatchesFilter,
     STATUS_TABS,
     type BookingFilterStatus,
 } from '@/constants/trainerBookings.constants';
@@ -37,7 +38,7 @@ const DUR = 300;
 export default function TrainerBookings() {
     const router = useRouter();
     const tabBarHeight = useTabBarHeight();
-    const { tab } = useLocalSearchParams<{ tab?: string }>();
+    const { tab, bookingId, requestId } = useLocalSearchParams<{ tab?: string; bookingId?: string; requestId?: string }>();
 
     const { data, isLoading, isFetching, refetch } = useTrainerBookings();
     const { data: chatSessions, refetch: refetchChatSessions } = useBookingChatSessions();
@@ -47,7 +48,7 @@ export default function TrainerBookings() {
     const { mutateAsync: cancelTrainerBooking } = useCancelTrainerBooking();
 
     const [statusOverrides, setStatusOverrides] = useState<Record<string, TrainerSession['status']>>({});
-    const [activeTab, setActiveTab] = useState<BookingFilterStatus>('pending');
+    const [activeTab, setActiveTab] = useState<BookingFilterStatus>('active');
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     // Real-time unread count cache: backend-sourced via polling + WebSocket patches
@@ -82,14 +83,14 @@ export default function TrainerBookings() {
         useCallback(() => {
             // Refresh on focus to show new booking requests.
             // NOTE: useApiQuery swallows errors and shows its own toast by default.
-            refetch().catch(() => { });
+            refetch().catch(() => { /* handled by query */ });
         }, [refetch]),
     );
 
     // Refresh badge counts on screen focus (real-time updates come via useBadgeWebSocket in layout)
     useFocusEffect(
         useCallback(() => {
-            refetchChatSessionsRef.current().catch(() => { });
+            refetchChatSessionsRef.current().catch(() => { /* handled by query */ });
         }, []),
     );
 
@@ -120,8 +121,11 @@ export default function TrainerBookings() {
         useCallback(() => {
             if (tab && STATUS_TABS.some((t) => t.value === tab)) {
                 setActiveTab(tab as BookingFilterStatus);
+                return;
             }
-        }, [tab]),
+
+            router.setParams({ tab: activeTab });
+        }, [activeTab, router, tab]),
     );
 
     const listStyle = useAnimatedStyle(() => ({
@@ -156,7 +160,8 @@ export default function TrainerBookings() {
             }, {}),
         );
         if (activeTab === 'all') return groups;
-        return groups.filter((g) => g.sessions.some((s) => s.status === activeTab));
+        // Use the new filter helper
+        return groups.filter((g) => g.sessions.some((s) => sessionMatchesFilter(s.status, activeTab)));
     }, [bookings, activeTab]);
 
     const handleAccept = useCallback(async (id: string) => {
@@ -172,8 +177,9 @@ export default function TrainerBookings() {
                 delete next[id];
                 return next;
             });
+            refetch().catch(() => { /* handled by query */ });
         }
-    }, [confirmBooking]);
+    }, [confirmBooking, refetch]);
 
     const handleReject = useCallback(async (id: string) => {
         setStatusOverrides((prev) => ({ ...prev, [id]: 'cancelled' }));
@@ -242,7 +248,10 @@ export default function TrainerBookings() {
                         return (
                             <TouchableOpacity
                                 key={statusTab.value}
-                                onPress={() => setActiveTab(statusTab.value)}
+                                onPress={() => {
+                                    setActiveTab(statusTab.value);
+                                    router.setParams({ tab: statusTab.value });
+                                }}
                                 activeOpacity={0.75}
                                 style={{
                                     paddingHorizontal: 16,
@@ -297,6 +306,8 @@ export default function TrainerBookings() {
                             onComplete={handleComplete}
                             onOpenChat={handleOpenBookingChat}
                             unreadCountMap={unreadCountMap}
+                            focusBookingId={bookingId}
+                            focusRequestId={requestId}
                         />
                     ))
                 ) : (

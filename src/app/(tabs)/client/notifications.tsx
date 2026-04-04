@@ -13,35 +13,44 @@ import type { AppNotification } from '@/types/clientTypes';
 const DUR = 280;
 const STAGGER = 55;
 
-type BookingTab = 'all' | 'pending' | 'accepted' | 'confirmed' | 'completed' | 'cancelled';
+// New minimalistic tab types
+type BookingTab = 'all' | 'active' | 'completed' | 'issues';
+
+// Map old status values to new tab groups
+function statusToTab(status: string): BookingTab {
+    const s = status.toLowerCase();
+    // Active statuses
+    if (['pending', 'accepted', 'confirmed', 'in_progress'].includes(s)) return 'active';
+    // Completed
+    if (s === 'completed') return 'completed';
+    // Issues
+    if (['disputed', 'no_show_client', 'session_was_taken_but_not_end_by_client', 'missed', 'cancelled', 'refund_pending', 'refunded'].includes(s)) return 'issues';
+    return 'all';
+}
 
 function inferBookingTabFromText(text: string): BookingTab {
     const t = text.toLowerCase();
-    if (t.includes('cancel')) return 'cancelled';
 
-    // Payment-related: distinguish "complete payment" (action required) vs "payment completed" (already paid)
-    const saysCompletePayment = t.includes('complete payment') || t.includes('complete your payment') || t.includes('complete the payment');
-    const saysPaymentCompleted = t.includes('payment completed') || t.includes('payment complete') || t.includes('payment successful') || t.includes('payment received');
+    // Issues category
+    if (t.includes('cancel') || t.includes('dispute') || t.includes('no show') || t.includes('missed')) return 'issues';
 
+    // Completed
+    if (t.includes('session completed') || t.includes('completed session') || t.includes('marked as completed')) return 'completed';
+
+    // Active (everything else that indicates ongoing activity)
     if (
         t.includes('accept')
         || t.includes('approved')
-        || t.includes('pay now')
-        || t.includes('pending payment')
-        || t.includes('awaiting payment')
-        || saysCompletePayment
-    ) return 'accepted';
+        || t.includes('pay')
+        || t.includes('confirm')
+        || t.includes('paid')
+        || t.includes('in progress')
+        || t.includes('session started')
+        || t.includes('verification')
+        || t.includes('request')
+        || t.includes('pending')
+    ) return 'active';
 
-    if (t.includes('confirm') || t.includes('paid') || saysPaymentCompleted) return 'confirmed';
-
-    // Session completed (not payment completion)
-    if (
-        t.includes('session completed')
-        || t.includes('completed session')
-        || t.includes('marked as completed')
-    ) return 'completed';
-
-    if (t.includes('pending') || t.includes('request')) return 'pending';
     return 'all';
 }
 
@@ -49,8 +58,14 @@ function getBookingTabFromNotification(n: AppNotification): BookingTab {
     const raw = (n.data ?? {}) as Record<string, unknown>;
     const statusVal = raw.booking_status ?? raw.status ?? raw.tab;
     const status = typeof statusVal === 'string' ? statusVal.toLowerCase() : '';
-    const known: BookingTab[] = ['all', 'pending', 'accepted', 'confirmed', 'completed', 'cancelled'];
-    if (known.includes(status as BookingTab)) return status as BookingTab;
+
+    // If we have a known status, map it to the new tab
+    if (status) {
+        const mappedTab = statusToTab(status);
+        if (mappedTab !== 'all') return mappedTab;
+    }
+
+    // Fall back to text inference
     return inferBookingTabFromText(`${n.title} ${n.message}`);
 }
 
@@ -182,7 +197,18 @@ export default function ClientNotifications() {
 
         if (n.type === 'booking') {
             const tab = getBookingTabFromNotification(n);
-            router.push({ pathname: '/(tabs)/client/bookings', params: { tab } } as never);
+            const raw = (n.data ?? {}) as Record<string, unknown>;
+            const bookingId = raw.booking_id ?? raw.bookingId;
+            const requestId = raw.request_id ?? raw.requestId;
+
+            router.push({
+                pathname: '/(tabs)/client/bookings',
+                params: {
+                    tab,
+                    bookingId: typeof bookingId === 'string' || typeof bookingId === 'number' ? String(bookingId) : undefined,
+                    requestId: typeof requestId === 'string' || typeof requestId === 'number' ? String(requestId) : undefined,
+                },
+            } as never);
         }
     }, [notifications, refetch, router]);
 

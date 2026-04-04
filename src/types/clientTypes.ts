@@ -101,10 +101,15 @@ export interface ApiTrainer {
 
 export interface ApiReview {
     id: number;
+    booking_id?: number | null;
     rating: number;
     comment: string;
     created_at: string;
-    client_name: string;
+    // Backend returns reviewer_name and reviewer_avatar
+    reviewer_name?: string;
+    reviewer_avatar?: string | null;
+    // Legacy field names (kept for compatibility)
+    client_name?: string;
     client_avatar_url?: string | null;
 }
 
@@ -147,10 +152,12 @@ export function mapApiTrainer(t: ApiTrainer): Trainer {
 export function mapApiReview(r: ApiReview, trainerId: string): Review {
     return {
         id: String(r.id),
-        bookingId: '',
+        bookingId: r.booking_id ? String(r.booking_id) : '',
         clientId: '',
-        clientName: r.client_name ?? 'Anonymous',
-        clientAvatar: r.client_avatar_url ?? '',
+        // Backend sends reviewer_name, fallback to client_name for compatibility
+        clientName: r.reviewer_name ?? r.client_name ?? 'Anonymous',
+        // Backend sends reviewer_avatar, fallback to client_avatar_url for compatibility
+        clientAvatar: r.reviewer_avatar ?? r.client_avatar_url ?? '',
         trainerId,
         rating: r.rating,
         comment: r.comment ?? '',
@@ -162,10 +169,33 @@ export type BookingStatus =
     | 'pending'
     | 'accepted'
     | 'confirmed'
+    | 'in_progress'
     | 'cancelled'
     | 'refund_pending'
     | 'refunded'
-    | 'completed';
+    | 'completed'
+    | 'disputed'
+    | 'no_show_client'
+    | 'session_was_taken_but_not_end_by_client'
+    | 'missed';
+
+export type SessionRequestType = 'start' | 'end';
+export type SessionRequestAction = 'accept' | 'reject';
+export type SessionRequestStatus = 'pending' | 'accepted' | 'rejected' | 'expired' | 'cancelled';
+
+export interface SessionRequest {
+    id: string;
+    bookingId: string;
+    requestType: SessionRequestType;
+    status: SessionRequestStatus;
+    requestedByRole: 'trainer' | 'client' | 'system';
+    actionByRole?: 'trainer' | 'client' | 'system';
+    action?: SessionRequestAction;
+    reason?: string;
+    expiresAt?: string;
+    createdAt: string;
+    respondedAt?: string;
+}
 
 export interface Booking {
     id: string;
@@ -305,7 +335,18 @@ export interface ApiBooking {
 }
 
 const VALID_BOOKING_STATUSES: BookingStatus[] = [
-    'pending', 'accepted', 'confirmed', 'cancelled', 'refund_pending', 'refunded', 'completed',
+    'pending',
+    'accepted',
+    'confirmed',
+    'in_progress',
+    'cancelled',
+    'refund_pending',
+    'refunded',
+    'completed',
+    'disputed',
+    'no_show_client',
+    'session_was_taken_but_not_end_by_client',
+    'missed',
 ];
 
 export function mapApiBooking(b: ApiBooking): Booking {

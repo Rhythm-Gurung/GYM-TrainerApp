@@ -74,10 +74,12 @@ export function BookingSummarySection({
                     );
                 })
             ) : (
-                <SummaryRow
-                    label="Time"
-                    value={`${selectedSlot!.start_time} – ${selectedSlot!.end_time}`}
-                />
+                selectedSlot && (
+                    <SummaryRow
+                        label="Time"
+                        value={`${selectedSlot.start_time} – ${selectedSlot.end_time}`}
+                    />
+                )
             )}
             <SummaryRow
                 label="Mode"

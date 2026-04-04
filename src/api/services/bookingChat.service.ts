@@ -198,7 +198,7 @@ function normalizeSession(raw: unknown): BookingChatSession {
         unreadCount: asNumber(item.unread_count, 0),
         lastMessage: asString(item.last_message ?? item.message_preview),
         lastMessageAt: asString(item.last_message_at ?? item.updated_at ?? item.timestamp),
-        canChat: asBoolean(item.can_chat, bookingStatus === 'confirmed'),
+        canChat: asBoolean(item.can_chat, bookingStatus === 'confirmed' || bookingStatus === 'in_progress'),
     };
 }
 

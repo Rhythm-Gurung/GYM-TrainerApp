@@ -1,10 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import BookingVerificationPanel from '@/components/ui/BookingVerificationPanel';
 import { colors, fontSize, radius, shadow } from '@/constants/theme';
+import { sessionMatchesFilter, type BookingFilterStatus } from '@/constants/trainerBookings.constants';
 import { useAuth } from '@/contexts/auth';
 import { resolveImageUrl } from '@/lib';
 import type { TrainerSession } from '@/types/trainerTypes';
@@ -20,12 +22,14 @@ export interface ClientGroup {
 
 interface ClientBookingGroupProps {
     group: ClientGroup;
-    filterStatus: string; // active tab: 'all' | 'pending' | 'confirmed' | 'completed' | 'cancelled'
+    filterStatus: BookingFilterStatus; // active tab: 'all' | 'active' | 'completed' | 'issues'
     onAccept: (id: string) => Promise<void> | void;
     onReject: (id: string) => Promise<void> | void;
     onComplete: (id: string) => void;
     onOpenChat: (session: TrainerSession) => void;
     unreadCountMap?: Record<string, number>;
+    focusBookingId?: string;
+    focusRequestId?: string;
 }
 
 // ─── Status maps ──────────────────────────────────────────────────────────────
@@ -36,8 +40,13 @@ const STATUS_LABEL: Record<SessionStatus, string> = {
     pending: 'Pending',
     accepted: 'Accepted',
     confirmed: 'Confirmed',
+    in_progress: 'In Progress',
     completed: 'Completed',
+    disputed: 'Disputed',
     cancelled: 'Cancelled',
+    no_show_client: 'No Show',
+    session_was_taken_but_not_end_by_client: 'End Missed',
+    missed: 'Missed',
     refund_pending: 'Refund Pending',
     refunded: 'Refunded',
 };
@@ -46,8 +55,13 @@ const STATUS_COLOR: Record<SessionStatus, string> = {
     pending: colors.accent,
     accepted: colors.trainerPrimary,
     confirmed: colors.trainerPrimary,
+    in_progress: colors.action,
     completed: colors.success,
+    disputed: colors.error,
     cancelled: colors.error,
+    no_show_client: colors.warning,
+    session_was_taken_but_not_end_by_client: colors.warning,
+    missed: colors.warning,
     refund_pending: colors.accent,
     refunded: colors.success,
 };
@@ -56,8 +70,13 @@ const STATUS_BG: Record<SessionStatus, string> = {
     pending: colors.accentBg,
     accepted: colors.trainerMuted,
     confirmed: colors.trainerMuted,
+    in_progress: colors.actionBg,
     completed: colors.statusNewBg,
+    disputed: colors.errorBg,
     cancelled: colors.errorBg,
+    no_show_client: colors.accentBg,
+    session_was_taken_but_not_end_by_client: colors.accentBg,
+    missed: colors.accentBg,
     refund_pending: colors.accentBg,
     refunded: colors.statusNewBg,
 };
@@ -66,15 +85,31 @@ const STATUS_ICON: Record<SessionStatus, keyof typeof Ionicons.glyphMap> = {
     pending: 'time-outline',
     accepted: 'checkmark-circle-outline',
     confirmed: 'checkmark-circle-outline',
+    in_progress: 'play-circle-outline',
     completed: 'trophy-outline',
+    disputed: 'warning-outline',
     cancelled: 'close-circle-outline',
+    no_show_client: 'alert-circle-outline',
+    session_was_taken_but_not_end_by_client: 'alert-circle-outline',
+    missed: 'alert-circle-outline',
     refund_pending: 'refresh-outline',
     refunded: 'checkmark-done-outline',
 };
 
 // Priority order for dominant status badge on summary card
 const STATUS_PRIORITY: SessionStatus[] = [
-    'pending', 'accepted', 'confirmed', 'completed', 'refund_pending', 'refunded', 'cancelled',
+    'pending',
+    'accepted',
+    'confirmed',
+    'in_progress',
+    'completed',
+    'disputed',
+    'no_show_client',
+    'session_was_taken_but_not_end_by_client',
+    'missed',
+    'refund_pending',
+    'refunded',
+    'cancelled',
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,7 +152,9 @@ function getDateRange(sessions: TrainerSession[]): string {
 
 interface DetailSheetProps {
     group: ClientGroup;
-    filterStatus: string;
+    filterStatus: BookingFilterStatus;
+    focusBookingId?: string;
+    focusRequestId?: string;
     onClose: () => void;
     onAccept: (id: string) => Promise<void> | void;
     onReject: (id: string) => Promise<void> | void;
@@ -129,6 +166,8 @@ interface DetailSheetProps {
 function DetailSheet({
     group,
     filterStatus,
+    focusBookingId,
+    focusRequestId,
     onClose,
     onAccept,
     onReject,
@@ -140,15 +179,19 @@ function DetailSheet({
     const insets = useSafeAreaInsets();
     const visibleSessions = filterStatus === 'all'
         ? group.sessions
-        : group.sessions.filter((s) => s.status === filterStatus);
+        : group.sessions.filter((s) => sessionMatchesFilter(s.status, filterStatus));
     const totalAmount = visibleSessions.reduce((sum, s) => sum + s.totalAmount, 0);
     const sorted = [...visibleSessions].sort((a, b) => a.date.localeCompare(b.date));
-    const confirmedSessions = sorted.filter((s) => s.status === 'confirmed');
-    const primaryConfirmedSession = confirmedSessions[0] ?? null;
+    // For chat button - include both confirmed and in_progress sessions
+    const activeSessions = sorted.filter((s) => s.status === 'confirmed' || s.status === 'in_progress');
+    const primaryConfirmedSession = activeSessions[0] ?? null;
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(() => new Set());
     const [isBulkAccepting, setIsBulkAccepting] = useState(false);
     const [isBulkRejecting, setIsBulkRejecting] = useState(false);
+
+    const scrollViewRef = useRef<ScrollView>(null);
+    const hasFocusScrolled = useRef(false);
 
     const selectableSessions = sorted.filter((s) => s.status === 'pending');
     const selectableIds = selectableSessions.map((s) => s.id);
@@ -270,7 +313,8 @@ function DetailSheet({
                 <View style={{ width: 36, height: 4, borderRadius: 2, backgroundColor: colors.surfaceBorder }} />
             </View>
 
-            {filterStatus === 'confirmed' && primaryConfirmedSession && (
+            {/* Show Chat button for confirmed/in_progress sessions (active bookings) */}
+            {(filterStatus === 'active' || filterStatus === 'all') && primaryConfirmedSession && (
                 <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 6 }}>
                     <TouchableOpacity
                         onPress={() => {
@@ -410,6 +454,7 @@ function DetailSheet({
 
             {/* Session list */}
             <ScrollView
+                ref={scrollViewRef}
                 style={{ marginTop: 8 }}
                 contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
                 showsVerticalScrollIndicator={false}
@@ -419,17 +464,25 @@ function DetailSheet({
                     const unreadKey = session.bookingId ?? session.id;
                     const isRejectable = session.status === 'pending';
                     const isSelected = selectedSessionIds.has(session.id);
+                    const sessionBookingId = session.bookingId ?? session.id;
+                    const isFocusedBooking = focusBookingId === sessionBookingId;
 
                     return (
                         <View
                             key={session.id}
+                            onLayout={isFocusedBooking ? (e) => {
+                                if (!hasFocusScrolled.current) {
+                                    hasFocusScrolled.current = true;
+                                    scrollViewRef.current?.scrollTo({ y: e.nativeEvent.layout.y, animated: true });
+                                }
+                            } : undefined}
                             style={{
                                 backgroundColor: colors.surface,
                                 borderRadius: radius.card,
                                 padding: 14,
                                 marginBottom: 10,
                                 borderWidth: 1,
-                                borderColor: colors.surfaceBorder,
+                                borderColor: isFocusedBooking ? colors.trainerPrimary : colors.surfaceBorder,
                             }}
                         >
                             {/* Date + status + unread badge row */}
@@ -474,7 +527,7 @@ function DetailSheet({
                                             {STATUS_LABEL[session.status]}
                                         </Text>
                                     </View>
-                                    {session.status === 'confirmed' && unreadCountMap && unreadCountMap[unreadKey] != null && unreadCountMap[unreadKey] > 0 && (
+                                    {(session.status === 'confirmed' || session.status === 'in_progress') && unreadCountMap && unreadCountMap[unreadKey] != null && unreadCountMap[unreadKey] > 0 && (
                                         <View
                                             style={{
                                                 minWidth: 20,
@@ -598,6 +651,15 @@ function DetailSheet({
                                     )}
                                 </View>
                             )}
+
+                            <BookingVerificationPanel
+                                bookingId={session.bookingId ?? session.id}
+                                bookingDate={session.date}
+                                bookingStatus={session.status}
+                                viewerRole="trainer"
+                                trainerTheme
+                                focusRequestId={focusRequestId}
+                            />
                         </View>
                     );
                 })}
@@ -676,13 +738,17 @@ export default function ClientBookingGroup({
     onComplete,
     onOpenChat,
     unreadCountMap,
+    focusBookingId,
+    focusRequestId,
 }: ClientBookingGroupProps) {
     const { authState } = useAuth();
-    const [sheetOpen, setSheetOpen] = useState(false);
+    const [sheetOpen, setSheetOpen] = useState(() => (
+        Boolean(focusBookingId && group.sessions.some((session) => (session.bookingId ?? session.id) === focusBookingId))
+    ));
 
     const visibleSessions = filterStatus === 'all'
         ? group.sessions
-        : group.sessions.filter((s) => s.status === filterStatus);
+        : group.sessions.filter((s) => sessionMatchesFilter(s.status, filterStatus));
 
     const counts = getStatusCounts(visibleSessions);
     const dateRange = getDateRange(visibleSessions);
@@ -786,27 +852,10 @@ export default function ClientBookingGroup({
                 {/* Status summary row */}
                 <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 12 }}>
                     <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', flex: 1, marginRight: 8 }}>
-                        {filterStatus === 'all' ? (
-                            (STATUS_PRIORITY.filter((s) => (counts[s] ?? 0) > 0) as SessionStatus[]).map((status) => (
-                                <View
-                                    key={status}
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        gap: 4,
-                                        paddingHorizontal: 8,
-                                        paddingVertical: 3,
-                                        borderRadius: radius.full,
-                                        backgroundColor: STATUS_BG[status],
-                                    }}
-                                >
-                                    <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[status] }}>
-                                        {`${counts[status]} ${STATUS_LABEL[status]}`}
-                                    </Text>
-                                </View>
-                            ))
-                        ) : (
+                        {/* Always show status breakdown badges */}
+                        {(STATUS_PRIORITY.filter((s) => (counts[s] ?? 0) > 0) as SessionStatus[]).map((status) => (
                             <View
+                                key={status}
                                 style={{
                                     flexDirection: 'row',
                                     alignItems: 'center',
@@ -814,20 +863,14 @@ export default function ClientBookingGroup({
                                     paddingHorizontal: 8,
                                     paddingVertical: 3,
                                     borderRadius: radius.full,
-                                    backgroundColor: STATUS_BG[filterStatus as SessionStatus] ?? colors.surface,
+                                    backgroundColor: STATUS_BG[status],
                                 }}
                             >
-                                <Text
-                                    style={{
-                                        fontSize: fontSize.caption,
-                                        fontWeight: '600',
-                                        color: STATUS_COLOR[filterStatus as SessionStatus] ?? colors.textMuted,
-                                    }}
-                                >
-                                    {`${visibleSessions.length} ${STATUS_LABEL[filterStatus as SessionStatus] ?? filterStatus}`}
+                                <Text style={{ fontSize: fontSize.caption, fontWeight: '600', color: STATUS_COLOR[status] }}>
+                                    {`${counts[status]} ${STATUS_LABEL[status]}`}
                                 </Text>
                             </View>
-                        )}
+                        ))}
                     </View>
                     <Text style={{ fontSize: fontSize.badge, fontWeight: '600', color: colors.textSecondary }}>
                         {`₹${totalAmount.toLocaleString('en-IN')}`}
@@ -858,6 +901,8 @@ export default function ClientBookingGroup({
                     <DetailSheet
                         group={group}
                         filterStatus={filterStatus}
+                        focusBookingId={focusBookingId}
+                        focusRequestId={focusRequestId}
                         onClose={() => setSheetOpen(false)}
                         onAccept={onAccept}
                         onReject={onReject}

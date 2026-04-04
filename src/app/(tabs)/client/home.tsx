@@ -98,7 +98,10 @@ export default function ClientHome() {
     }, [allTrainers]);
 
     const topTrainers = useMemo(
-        () => allTrainers.filter((t) => t.rating >= 4.8).slice(0, 3),
+        () => allTrainers
+            .filter((t) => t.reviewCount > 0)
+            .sort((a, b) => b.rating - a.rating)
+            .slice(0, 4),
         [allTrainers],
     );
     const recentlyViewed = useMemo(
@@ -308,7 +311,7 @@ export default function ClientHome() {
                                 <TrainerCard
                                     key={trainer.id}
                                     trainer={trainer}
-                                    onPress={() => router.push(`/client/trainerProfile?id=${trainer.id}` as never)}
+                                    onPress={() => router.push(`/client/trainerProfile?id=${trainer.id}&tab=Reviews` as never)}
                                 />
                             ))}
                         </View>

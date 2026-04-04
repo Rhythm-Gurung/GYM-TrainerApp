@@ -5,7 +5,7 @@ export * from './useApiQuery';
 export * from './useBadgeWebSocket';
 export * from './useBookingChat';
 export * from './useBookSession';
+export * from './useSessionRequests';
 export * from './useTrainerBookings';
 export * from './useTrainerEarnings';
-
-
+export * from './useTrainerSchedule';

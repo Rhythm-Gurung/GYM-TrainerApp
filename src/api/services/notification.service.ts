@@ -85,7 +85,12 @@ export const notificationService = {
         try {
             await apiClient.patch(url, { is_read: true });
         } catch {
-            await apiClient.patch(url, { isRead: true });
+            try {
+                await apiClient.patch(url, { isRead: true });
+            } catch (err) {
+                console.warn('[notification] markRead failed:', err);
+                throw err;
+            }
         }
     },
 

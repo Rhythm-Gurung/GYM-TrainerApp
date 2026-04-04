@@ -1,6 +1,7 @@
     import { apiClient } from '@/api/client';
 import { authService } from '@/api/services/auth.service';
 import { API_CONFIG } from '@/constants/config';
+import type { SessionRequestType } from '@/types/clientTypes';
 import type { DateOverride, ScheduleOverride, ScheduleScope } from '@/types/trainerAvailability.types';
 import type {
     CertificationListItem,
@@ -79,7 +80,18 @@ function mapApiTrainerSession(item: unknown): TrainerSession {
 
   const statusRaw = pickString(row.status, 'pending');
   const VALID_STATUSES: TrainerSessionStatus[] = [
-    'pending', 'accepted', 'confirmed', 'cancelled', 'refund_pending', 'refunded', 'completed',
+    'pending',
+    'accepted',
+    'confirmed',
+    'in_progress',
+    'cancelled',
+    'refund_pending',
+    'refunded',
+    'completed',
+    'disputed',
+    'no_show_client',
+    'session_was_taken_but_not_end_by_client',
+    'missed',
   ];
   const status: TrainerSessionStatus = VALID_STATUSES.includes(statusRaw as TrainerSessionStatus)
     ? (statusRaw as TrainerSessionStatus)
@@ -115,6 +127,17 @@ export const trainerService = {
    */
   cancelBookingById: async (id: string, reason: string): Promise<void> => {
     await apiClient.post(`${API_CONFIG.ENDPOINTS.TRAINER.BOOKINGS}${id}/cancel/`, { reason });
+  },
+
+  /**
+   * Create a trainer verification request for a booking.
+   * POST /api/trainer/bookings/{booking_id}/session-requests/
+   */
+  createSessionRequest: async (bookingId: string, requestType: SessionRequestType): Promise<void> => {
+    await apiClient.post(
+      `${API_CONFIG.ENDPOINTS.TRAINER.BOOKINGS}${bookingId}/session-requests/`,
+      { request_type: requestType },
+    );
   },
 
   /**
@@ -753,5 +776,24 @@ export const trainerService = {
         };
       }),
     };
+  },
+
+  /**
+   * Fetch all reviews for the authenticated trainer.
+   * GET /api/trainers/{id}/reviews/
+   * Returns: { count, average_rating, data: ApiReview[] }
+   */
+  getReviews: async (): Promise<unknown> => {
+    // Get the authenticated user's ID
+    const user = await authService.getProfile();
+    const trainerId = user?.id ? String(user.id) : '';
+    
+    if (!trainerId) {
+      throw new Error('Trainer ID not found');
+    }
+
+    // Use the client endpoint to fetch reviews for this trainer
+    const { data } = await apiClient.get(`/api/trainers/${trainerId}/reviews/`);
+    return data;
   },
 };

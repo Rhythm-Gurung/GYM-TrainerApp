@@ -1,4 +1,5 @@
 export * from './auth.service';
 export * from './chat.service';
 export * from './client.service';
+export * from './trainer.service';
 

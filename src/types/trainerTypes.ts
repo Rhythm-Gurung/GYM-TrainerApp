@@ -187,6 +187,7 @@ export interface GalleryItem {
 
 // Edit Profile form fields
 export interface EditProfileForm {
+    username: string;
     first_name: string;
     last_name: string;
     dob: string;

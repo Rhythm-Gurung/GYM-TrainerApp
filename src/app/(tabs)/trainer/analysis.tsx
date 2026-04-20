@@ -76,7 +76,7 @@ function isoFromUnknownDate(value: unknown): string | null {
 
 function formatDayLabel(iso: string): string {
     const d = new Date(`${iso}T00:00:00`);
-    return d.toLocaleDateString(undefined, { weekday: 'short' });
+    return String(d.getDate());
 }
 
 export default function TrainerAnalysis() {
@@ -119,14 +119,14 @@ export default function TrainerAnalysis() {
         const now = new Date();
         const sessions: SessionWithOptionalAmount[] = (bookingsData ?? []) as SessionWithOptionalAmount[];
 
-        const last7: string[] = Array.from({ length: 7 }, (_, idx) => {
-            const i = 6 - idx;
+        const last30: string[] = Array.from({ length: 30 }, (_, idx) => {
+            const i = 29 - idx;
             const d = new Date(now);
             d.setDate(now.getDate() - i);
             return isoDateOnly(d);
         });
 
-        const earningsByDay = new Map<string, number>(last7.map((day) => [day, 0]));
+        const earningsByDay = new Map<string, number>(last30.map((day) => [day, 0]));
 
         // Build earnings series from payout history (supports multiple payouts per day).
         const payouts = earningsData?.payouts ?? [];
@@ -137,7 +137,11 @@ export default function TrainerAnalysis() {
             earningsByDay.set(day, (earningsByDay.get(day) ?? 0) + amount);
         });
 
-        const line: LinePoint[] = last7.map((day) => ({ x: formatDayLabel(day), y: earningsByDay.get(day) ?? 0 }));
+        // Show label every 5 days to avoid x-axis crowding.
+        const line: LinePoint[] = last30.map((day, idx) => ({
+            x: idx % 5 === 0 || idx === 29 ? formatDayLabel(day) : '',
+            y: earningsByDay.get(day) ?? 0,
+        }));
 
         const statusCounts = sessions.reduce(
             (acc, s) => {
@@ -264,7 +268,7 @@ export default function TrainerAnalysis() {
                         >
                             <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
                                 <Text style={{ fontSize: fontSize.section, fontWeight: '800', color: colors.textPrimary }}>
-                                    Earnings (7 days)
+                                    Earnings (30 days)
                                 </Text>
                                 <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.textSubtle }}>
                                     Completed only
@@ -280,7 +284,7 @@ export default function TrainerAnalysis() {
                                     }))}
                                     height={180}
                                     width={chartWidth}
-                                    spacing={Math.floor((chartWidth - 20) / 7)}
+                                    spacing={Math.floor((chartWidth - 20) / 30)}
                                     initialSpacing={10}
                                     thickness={2}
                                     color={colors.trainerPrimary}

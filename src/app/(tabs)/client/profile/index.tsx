@@ -13,6 +13,7 @@ import {
 import Animated, {
     useAnimatedStyle,
     useSharedValue,
+    withDelay,
     withTiming,
 } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -23,25 +24,13 @@ import HeroGradient from '@/components/ui/HeroGradient';
 import { colors, fontSize, gradientColors, radius, shadow } from '@/constants/theme';
 import { useAuth } from '@/contexts/auth';
 import { useTabBarHeight } from '@/hooks/useTabBarHeight';
-import { showErrorToast } from '@/lib';
+import { showErrorToast, showSuccessToast } from '@/lib';
 import type { User } from '@/types/authTypes';
 import { mapApiTrainer, type ApiTrainer } from '@/types/clientTypes';
+import { getClientMenuItems } from '@/types/profile/clientMenuItems';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PROFILE_FIELDS: (keyof User)[] = [
-    'email',
-    'username',
-    'full_name',
-    'profile_image',
-    'role',
-];
-
-function computeProfileCompletion(user: User | null): number {
-    if (!user) return 0;
-    const filled = PROFILE_FIELDS.filter((field) => !!user[field]).length;
-    return Math.round((filled / PROFILE_FIELDS.length) * 100);
-}
 
 function getInitials(user: User | null): string {
     const name = user?.full_name ?? user?.username ?? user?.email ?? '';
@@ -62,29 +51,45 @@ export default function ClientProfile() {
     const { scrollTo } = useLocalSearchParams<{ scrollTo?: string }>();
     const tabBarHeight = useTabBarHeight();
     const insets = useSafeAreaInsets();
-    const { authState, getProfile } = useAuth();
+    const { authState, getProfile, logout } = useAuth();
     const [userData, setUserData] = useState<User | null>(authState.user);
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+    const [imageKey, setImageKey] = useState(0);
 
     const [favourites, setFavourites] = useState<ApiTrainer[]>([]);
-    const [showAllFavourites, setShowAllFavourites] = useState(false);
 
     const scrollRef = useRef<ScrollView | null>(null);
     const favouritesYRef = useRef<number>(0);
 
     const cardY = useSharedValue(SLIDE);
-    const anim = useRef({ cardY });
+    const menuY = useSharedValue(SLIDE);
+    const anim = useRef({ cardY, menuY });
+
+    const fetchFavourites = useCallback(async () => {
+        try {
+            const favs = await clientService.getFavourites();
+            setFavourites(favs);
+        } catch {
+            // silently ignore — favourites are non-critical
+        }
+    }, []);
 
     useFocusEffect(
         useCallback(() => {
             const v = anim.current;
             v.cardY.value = SLIDE;
             v.cardY.value = withTiming(0, { duration: DUR });
-        }, []),
+            v.menuY.value = SLIDE;
+            v.menuY.value = withDelay(120, withTiming(0, { duration: DUR }));
+            // Always re-fetch favourites on focus so the list stays up-to-date
+            fetchFavourites();
+        }, [fetchFavourites]),
     );
 
     const cardStyle = useAnimatedStyle(() => ({ transform: [{ translateY: cardY.value }] }));
+    const menuStyle = useAnimatedStyle(() => ({ transform: [{ translateY: menuY.value }] }));
 
     const fetchProfile = useCallback(async () => {
         try {
@@ -95,6 +100,7 @@ export default function ClientProfile() {
             ]);
             setUserData(profile);
             setFavourites(favs);
+            setImageKey((k) => k + 1);
         } catch {
             showErrorToast('Failed to load profile', 'Error');
         } finally {
@@ -108,11 +114,34 @@ export default function ClientProfile() {
         }
     }, [userData, fetchProfile]);
 
+    // Sync userData whenever authState.user is updated (e.g. after image removal in editProfile)
+    useEffect(() => {
+        if (authState.user) {
+            setUserData(authState.user);
+            setImageKey((k) => k + 1);
+        }
+    }, [authState.user]);
+
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);
         await fetchProfile();
         setIsRefreshing(false);
     }, [fetchProfile]);
+
+    const handleLogout = useCallback(async () => {
+        setIsLoggingOut(true);
+        try {
+            await logout();
+            showSuccessToast('Logged out successfully', 'Success');
+            router.replace('/(auth)/login' as never);
+        } catch {
+            showErrorToast('Failed to logout', 'Error');
+        } finally {
+            setIsLoggingOut(false);
+        }
+    }, [logout, router]);
+
+    const menuItems = getClientMenuItems(router);
 
     useEffect(() => {
         if (scrollTo !== 'favourites') return undefined;
@@ -121,15 +150,14 @@ export default function ClientProfile() {
             scrollRef.current?.scrollTo({ y: Math.max(0, favouritesYRef.current - 12), animated: true });
         }, 250);
         return () => clearTimeout(t);
-    }, [scrollTo, favourites.length, showAllFavourites]);
+    }, [scrollTo, favourites.length]);
 
-    const profileCompletion = computeProfileCompletion(userData);
     const initials = getInitials(userData);
     const displayName = userData?.full_name ?? userData?.username ?? 'User';
     const displayEmail = userData?.email ?? '';
 
     const favouriteTrainers = favourites.map(mapApiTrainer);
-    const visibleFavourites = showAllFavourites ? favouriteTrainers : favouriteTrainers.slice(0, 5);
+    const previewFavourites = favouriteTrainers.slice(0, 3);
 
     if (isLoading && !userData) {
         return (
@@ -159,27 +187,9 @@ export default function ClientProfile() {
             >
                 {/* ── Hero header ───────────────────────────────── */}
                 <View style={{ paddingHorizontal: 20, paddingTop: insets.top + 24, paddingBottom: 80 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={{ flex: 1, fontSize: fontSize.pageTitle, fontWeight: '800', color: colors.white }}>
-                            My Profile
-                        </Text>
-                        <TouchableOpacity
-                            onPress={() => router.push('/(tabs)/client/profile/profileMenu' as never)}
-                            activeOpacity={0.75}
-                            style={{
-                                width: 36,
-                                height: 36,
-                                borderRadius: radius.icon,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backgroundColor: 'rgba(255,255,255,0.18)',
-                                borderWidth: 1,
-                                borderColor: 'rgba(255,255,255,0.28)',
-                            }}
-                        >
-                            <Ionicons name="menu" size={20} color={colors.white} />
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={{ fontSize: fontSize.pageTitle, fontWeight: '800', color: colors.white }}>
+                        My Profile
+                    </Text>
                 </View>
 
                 {/* ── Content ───────────────────────────────────── */}
@@ -196,7 +206,7 @@ export default function ClientProfile() {
                                 {(userData?.profile_image_url ?? userData?.profile_image) ? (
                                     <ExpoImage
                                         source={{
-                                            uri: clientService.getClientProfileImageUrl(),
+                                            uri: `${clientService.getClientProfileImageUrl()}?v=${imageKey}`,
                                             headers: { Authorization: `Bearer ${authState.token ?? ''}` },
                                         }}
                                         style={{ width: 72, height: 72, borderRadius: radius.card }}
@@ -278,34 +288,8 @@ export default function ClientProfile() {
                             </View>
                         </View>
 
-                        {/* Profile Completion */}
-                        <View className="mt-5 pt-5 border-t border-surface">
-                            <View className="flex-row items-center justify-between mb-2">
-                                <Text className="text-xs text-foreground-5 font-medium">Profile Completion</Text>
-                                <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.primary }}>
-                                    {`${profileCompletion}%`}
-                                </Text>
-                            </View>
-                            <View
-                                style={{
-                                    height: 10,
-                                    backgroundColor: colors.surface,
-                                    borderRadius: radius.full,
-                                    overflow: 'hidden',
-                                }}
-                            >
-                                <View
-                                    style={{
-                                        height: '100%',
-                                        width: `${profileCompletion}%`,
-                                        backgroundColor: colors.primary,
-                                        borderRadius: radius.full,
-                                    }}
-                                />
-                            </View>
-                        </View>
 
-                        {/* Favourites (inline list) */}
+                        {/* Favourites preview */}
                         {favouriteTrainers.length > 0 && (
                             <View
                                 className="mt-5 pt-5 border-t border-surface"
@@ -317,34 +301,20 @@ export default function ClientProfile() {
                                     <Text style={{ fontSize: fontSize.section, fontWeight: '800', color: colors.textPrimary }}>
                                         Favourites
                                     </Text>
-                                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                                        {favouriteTrainers.length > 5 && (
-                                            <TouchableOpacity
-                                                onPress={() => setShowAllFavourites((v) => !v)}
-                                                activeOpacity={0.75}
-                                                style={{
-                                                    paddingHorizontal: 10,
-                                                    paddingVertical: 6,
-                                                    borderRadius: radius.full,
-                                                    backgroundColor: colors.surface,
-                                                    borderWidth: 1,
-                                                    borderColor: colors.surfaceBorder,
-                                                }}
-                                            >
-                                                <Text style={{ fontSize: fontSize.tag, fontWeight: '800', color: colors.primary }}>
-                                                    {showAllFavourites ? 'Show less' : 'Show more'}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        )}
-
-                                        <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.textSubtle }}>
-                                            {`${favouriteTrainers.length}`}
+                                    <TouchableOpacity
+                                        onPress={() => router.push('/(tabs)/client/profile/favourites' as never)}
+                                        activeOpacity={0.75}
+                                        style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                                    >
+                                        <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.primary }}>
+                                            {`See all (${favouriteTrainers.length})`}
                                         </Text>
-                                    </View>
+                                        <Ionicons name="chevron-forward" size={13} color={colors.primary} />
+                                    </TouchableOpacity>
                                 </View>
 
                                 <View style={{ gap: 12 }}>
-                                    {visibleFavourites.map((t) => (
+                                    {previewFavourites.map((t) => (
                                         <TrainerCard
                                             key={t.id}
                                             trainer={t}
@@ -354,6 +324,87 @@ export default function ClientProfile() {
                                 </View>
                             </View>
                         )}
+                    </Animated.View>
+
+                    {/* ── Account Settings ──────────────────────── */}
+                    <Animated.View
+                        className="mt-5 bg-white rounded-2xl border border-surface"
+                        style={[shadow.cardSubtle, menuStyle]}
+                    >
+                        {/* Section header */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.surfaceBorder }}>
+                            <Ionicons name="settings-outline" size={16} color={colors.primary} />
+                            <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
+                                Account Settings
+                            </Text>
+                        </View>
+
+                        {menuItems.map(({ id, icon, label, onPress }, index) => (
+                            <TouchableOpacity
+                                key={id}
+                                onPress={onPress}
+                                style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    paddingHorizontal: 20,
+                                    paddingVertical: 14,
+                                    borderBottomWidth: index !== menuItems.length - 1 ? 1 : 0,
+                                    borderBottomColor: colors.surfaceBorder,
+                                }}
+                                activeOpacity={0.6}
+                            >
+                                <View
+                                    style={{
+                                        width: 30,
+                                        height: 30,
+                                        borderRadius: radius.sm,
+                                        backgroundColor: colors.surface,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <Ionicons name={icon} size={15} color={colors.textMuted} />
+                                </View>
+                                <Text style={{ flex: 1, fontSize: fontSize.body, fontWeight: '500', color: colors.textSecondary, marginLeft: 12 }}>
+                                    {label}
+                                </Text>
+                                <Ionicons name="chevron-forward" size={14} color={colors.textDisabled} />
+                            </TouchableOpacity>
+                        ))}
+
+                        {/* Sign Out row inside the same card */}
+                        <TouchableOpacity
+                            onPress={handleLogout}
+                            disabled={isLoggingOut}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingHorizontal: 20,
+                                paddingVertical: 14,
+                                gap: 12,
+                            }}
+                            activeOpacity={0.6}
+                        >
+                            <View
+                                style={{
+                                    width: 30,
+                                    height: 30,
+                                    borderRadius: radius.sm,
+                                    backgroundColor: 'rgba(255,59,48,0.08)',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}
+                            >
+                                {isLoggingOut ? (
+                                    <ActivityIndicator size="small" color={colors.error} />
+                                ) : (
+                                    <Ionicons name="log-out-outline" size={15} color={colors.error} />
+                                )}
+                            </View>
+                            <Text style={{ fontSize: fontSize.body, fontWeight: '500', color: colors.error }}>
+                                Sign Out
+                            </Text>
+                        </TouchableOpacity>
                     </Animated.View>
 
                 </View>

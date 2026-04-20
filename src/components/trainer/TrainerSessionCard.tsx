@@ -1,7 +1,11 @@
 import { Ionicons } from '@expo/vector-icons';
+import { Image as ExpoImage } from 'expo-image';
+import { useState } from 'react';
 import { Text, TouchableOpacity, View } from 'react-native';
 
 import { colors, fontSize, radius } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
+import { resolveImageUrl } from '@/lib';
 import type { TrainerSession } from '@/types/trainerTypes';
 
 // ─── Status maps ──────────────────────────────────────────────────────────────
@@ -92,6 +96,11 @@ interface TrainerSessionCardProps {
 }
 
 export default function TrainerSessionCard({ session, onPress }: TrainerSessionCardProps) {
+    const { authState } = useAuth();
+    const [imgError, setImgError] = useState(false);
+    const avatarUrl = resolveImageUrl(session.clientAvatar);
+    const showImage = !!avatarUrl && !imgError;
+
     return (
         <TouchableOpacity
             onPress={onPress}
@@ -116,12 +125,26 @@ export default function TrainerSessionCard({ session, onPress }: TrainerSessionC
                             backgroundColor: colors.trainerMuted,
                             alignItems: 'center',
                             justifyContent: 'center',
+                            overflow: 'hidden',
                             marginRight: 10,
                         }}
                     >
-                        <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.trainerPrimary }}>
-                            {getInitials(session.clientName)}
-                        </Text>
+                        {showImage ? (
+                            <ExpoImage
+                                source={{
+                                    uri: avatarUrl,
+                                    headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                                }}
+                                style={{ width: '100%', height: '100%' }}
+                                contentFit="cover"
+                                cachePolicy="none"
+                                onError={() => setImgError(true)}
+                            />
+                        ) : (
+                            <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.trainerPrimary }}>
+                                {getInitials(session.clientName)}
+                            </Text>
+                        )}
                     </View>
                     <Text
                         style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}

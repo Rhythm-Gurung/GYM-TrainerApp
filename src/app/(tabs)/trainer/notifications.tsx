@@ -117,7 +117,7 @@ function TrainerNotificationList({
                         No notifications
                     </Text>
                     <Text style={{ fontSize: fontSize.tag, fontWeight: '500', color: colors.textMuted, textAlign: 'center' }}>
-                        You’re all caught up for now.
+                        You&apos;re all caught up for now.
                     </Text>
                 </View>
             ) : (
@@ -135,7 +135,7 @@ function TrainerNotificationList({
                             }}
                         >
                             <Text style={{ fontSize: fontSize.body, fontWeight: '700', color: colors.textPrimary }}>
-                                You’re all caught up
+                                You&apos;re all caught up
                             </Text>
                             <Text style={{ fontSize: fontSize.tag, fontWeight: '500', color: colors.textMuted, marginTop: 2 }}>
                                 No unread notifications.

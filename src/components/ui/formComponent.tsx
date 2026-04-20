@@ -3,6 +3,7 @@ import {
     type Control,
     type FieldPath,
     type FieldValues,
+    type RegisterOptions,
     useController,
 } from 'react-hook-form';
 import {
@@ -28,6 +29,7 @@ interface InputFieldProps<
     name: TName;
     label: string;
     error?: string;
+    rules?: RegisterOptions<TFieldValues, TName>;
     leftIcon?: IoniconName;
     rightIcon?: IoniconName;
     onRightIconPress?: () => void;
@@ -41,6 +43,7 @@ export function InputField<
     name,
     label,
     error,
+    rules,
     leftIcon,
     rightIcon,
     onRightIconPress,
@@ -48,7 +51,7 @@ export function InputField<
     placeholder,
     ...props
 }: InputFieldProps<TFieldValues, TName>) {
-    const { field } = useController({ control, name });
+    const { field } = useController({ control, name, rules });
     const [isFocused, setIsFocused] = useState(false);
     const showFloatingLabel = isFocused || !!field.value;
 

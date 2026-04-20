@@ -1,8 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
+import { useState } from 'react';
 import { Text, View } from 'react-native';
 
 import { colors, fontSize, radius } from '@/constants/theme';
+import { useAuth } from '@/contexts/auth';
 import { resolveImageUrl } from '@/lib';
 import type { Review } from '@/types/clientTypes';
 
@@ -19,11 +21,14 @@ function getInitials(name: string): string {
 }
 
 export default function ReviewCard({ review }: ReviewCardProps) {
+    const { authState } = useAuth();
+    const [imgError, setImgError] = useState(false);
     const initials = getInitials(review.clientName);
     const formattedDate = new Date(review.createdAt).toLocaleDateString('en-IN', {
         day: 'numeric', month: 'short', year: 'numeric',
     });
     const avatarUrl = resolveImageUrl(review.clientAvatar);
+    const showImage = !!avatarUrl && !imgError;
 
     return (
         <View
@@ -39,15 +44,20 @@ export default function ReviewCard({ review }: ReviewCardProps) {
             {/* Header row */}
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 {/* Avatar */}
-                {avatarUrl ? (
+                {showImage ? (
                     <ExpoImage
-                        source={{ uri: avatarUrl }}
+                        source={{
+                            uri: avatarUrl,
+                            headers: { Authorization: `Bearer ${authState.token ?? ''}` },
+                        }}
                         style={{
                             width: 40,
                             height: 40,
                             borderRadius: radius.sm,
                         }}
                         contentFit="cover"
+                        cachePolicy="none"
+                        onError={() => setImgError(true)}
                     />
                 ) : (
                     <View

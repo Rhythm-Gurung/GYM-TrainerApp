@@ -79,6 +79,36 @@ export default function TrainerSchedule() {
     const handleSavePress = useCallback(() => {
         const hasActiveDays = schedule.some((d) => d.enabled);
 
+        // Guard: enabled days must have at least one slot
+        const emptyEnabledDays = schedule.filter((d) => d.enabled && d.slots.length === 0);
+        if (emptyEnabledDays.length > 0) {
+            const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const names = emptyEnabledDays.map((d) => DAY_NAMES[d.dayOfWeek]).join(', ');
+            Alert.alert(
+                'Missing time slots',
+                `${names} ${emptyEnabledDays.length === 1 ? 'is' : 'are'} enabled but ${emptyEnabledDays.length === 1 ? 'has' : 'have'} no time slots. Add at least one slot or disable ${emptyEnabledDays.length === 1 ? 'that day' : 'those days'} before saving.`,
+            );
+            return;
+        }
+
+        // Guard: end time must be after start time
+        const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const invalidSlotDays = schedule.filter((d) =>
+            d.enabled && d.slots.some((s) => s.endTime <= s.startTime),
+        );
+        if (invalidSlotDays.length > 0) {
+            const lines = invalidSlotDays.flatMap((d) =>
+                d.slots
+                    .filter((s) => s.endTime <= s.startTime)
+                    .map((s) => `• ${DAY_NAMES[d.dayOfWeek]}: ${s.startTime} – ${s.endTime}`),
+            );
+            Alert.alert(
+                'Invalid time slots',
+                `End time must be after start time:\n\n${lines.join('\n')}`,
+            );
+            return;
+        }
+
         const proceed = () => {
             if (scheduleDuplicateName) {
                 Alert.alert(

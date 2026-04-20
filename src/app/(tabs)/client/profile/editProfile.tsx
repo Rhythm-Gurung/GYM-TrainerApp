@@ -2,15 +2,14 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useNavigation, useRouter } from 'expo-router';
-import { useCallback, useState } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useCallback, useEffect, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import {
     ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Switch,
     Text,
     TouchableOpacity,
     View,
@@ -55,13 +54,12 @@ export default function ClientEditProfile() {
     const { authState, getProfile } = useAuth();
     const { user } = authState;
 
-    const { control, handleSubmit, formState: { errors } } = useForm<ClientProfileEditForm>({
+    const { control, handleSubmit, reset, formState: { errors } } = useForm<ClientProfileEditForm>({
         defaultValues: {
-            first_name: user?.first_name ?? '',
-            last_name: user?.last_name ?? '',
+            username: user?.username ?? '',
+            full_name: user?.full_name ?? '',
             dob: user?.dob ?? '',
             contact_no: user?.contact_no ?? '',
-            is_receiving_promotional_email: user?.is_receiving_promotional_email ?? false,
         },
     });
 
@@ -81,6 +79,20 @@ export default function ClientEditProfile() {
             return () => parent?.setOptions({ tabBarStyle: undefined });
         }, [navigation]),
     );
+
+    // Always sync the form with the latest server data when the screen gains focus
+    useEffect(() => {
+        getProfile().then((fresh) => {
+            if (!fresh) return;
+            reset({
+                username: fresh.username ?? '',
+                full_name: fresh.full_name ?? '',
+                dob: fresh.dob ?? '',
+                contact_no: fresh.contact_no ?? '',
+            });
+        }).catch(() => { /* keep current values on error */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Profile image actions ──────────────────────────────────────────────────
 
@@ -155,11 +167,10 @@ export default function ClientEditProfile() {
         setIsSubmitting(true);
         try {
             await clientService.patchClientProfile({
-                first_name: data.first_name.trim() || undefined,
-                last_name: data.last_name.trim() || undefined,
+                username: data.username.trim() || undefined,
+                full_name: data.full_name.trim() || undefined,
                 dob: data.dob.trim() || undefined,
                 contact_no: data.contact_no.trim() || undefined,
-                is_receiving_promotional_email: data.is_receiving_promotional_email,
             });
             await getProfile();
             showSuccessToast('Profile updated successfully');
@@ -173,10 +184,11 @@ export default function ClientEditProfile() {
 
     // ── Avatar display helpers ─────────────────────────────────────────────────
 
-    const initials = [user?.first_name, user?.last_name]
-        .filter(Boolean)
-        .map((n) => n![0].toUpperCase())
-        .join('') || (user?.username?.[0]?.toUpperCase() ?? 'U');
+    const initials = (user?.full_name ?? user?.username ?? 'U')
+        .split(' ')
+        .map((n) => n[0]?.toUpperCase() ?? '')
+        .slice(0, 2)
+        .join('');
 
     const displayImageUri = localImageUri ?? (hasServerImage ? serverImageUrl : null);
 
@@ -306,22 +318,33 @@ export default function ClientEditProfile() {
 
                     <InputField
                         control={control}
-                        name="first_name"
-                        label="First Name"
-                        leftIcon="person-outline"
-                        placeholder="First Name"
-                        error={errors.first_name?.message}
-                        autoCapitalize="words"
+                        name="username"
+                        label="Username"
+                        leftIcon="at-outline"
+                        placeholder="e.g. ram_gurung"
+                        error={errors.username?.message}
+                        autoCapitalize="none"
+                        rules={{
+                            required: 'Username is required',
+                            minLength: { value: 3, message: 'Username must be at least 3 characters' },
+                            maxLength: { value: 30, message: 'Username cannot exceed 30 characters' },
+                            pattern: { value: /^[a-zA-Z0-9_]+$/, message: 'Only letters, numbers, and underscores allowed' },
+                        }}
                     />
 
                     <InputField
                         control={control}
-                        name="last_name"
-                        label="Last Name"
+                        name="full_name"
+                        label="Full Name"
                         leftIcon="person-outline"
-                        placeholder="Last Name"
-                        error={errors.last_name?.message}
+                        placeholder="e.g. Ram Gurung"
+                        error={errors.full_name?.message}
                         autoCapitalize="words"
+                        rules={{
+                            minLength: { value: 2, message: 'Full name must be at least 2 characters' },
+                            maxLength: { value: 100, message: 'Full name cannot exceed 100 characters' },
+                            pattern: { value: /^[a-zA-Z\s'-]+$/, message: 'Full name can only contain letters' },
+                        }}
                     />
 
                     <InputField
@@ -331,6 +354,19 @@ export default function ClientEditProfile() {
                         leftIcon="calendar-outline"
                         placeholder="YYYY-MM-DD"
                         error={errors.dob?.message}
+                        rules={{
+                            validate: (val) => {
+                                if (!val) return true;
+                                if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return 'Use format YYYY-MM-DD';
+                                const date = new Date(val);
+                                if (Number.isNaN(date.getTime())) return 'Invalid date';
+                                if (date > new Date()) return 'Date of birth cannot be in the future';
+                                const minDate = new Date();
+                                minDate.setFullYear(minDate.getFullYear() - 100);
+                                if (date < minDate) return 'Enter a valid date of birth';
+                                return true;
+                            },
+                        }}
                     />
 
                     <InputField
@@ -338,63 +374,13 @@ export default function ClientEditProfile() {
                         name="contact_no"
                         label="Contact Number"
                         leftIcon="call-outline"
-                        placeholder="e.g. 9800000001"
+                        placeholder="e.g. +977-9800000000"
                         keyboardType="phone-pad"
                         error={errors.contact_no?.message}
-                    />
-
-                    {/* ── Preferences ──────────────────────────────── */}
-                    <SectionLabel icon="settings-outline" title="Preferences" />
-
-                    <View
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            backgroundColor: colors.white,
-                            borderRadius: radius.card,
-                            borderWidth: 1,
-                            borderColor: colors.surfaceBorder,
-                            paddingHorizontal: 14,
-                            paddingVertical: 14,
-                            marginBottom: 24,
+                        rules={{
+                            pattern: { value: /^[+\d\s()-]{7,15}$/, message: 'Enter a valid contact number' },
                         }}
-                    >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 }}>
-                            <View
-                                style={{
-                                    width: 32,
-                                    height: 32,
-                                    borderRadius: radius.sm,
-                                    backgroundColor: colors.surface,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}
-                            >
-                                <Ionicons name="mail-outline" size={16} color={colors.textMuted} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                                <Text style={{ fontSize: fontSize.body, fontWeight: '600', color: colors.textPrimary }}>
-                                    Promotional Emails
-                                </Text>
-                                <Text style={{ fontSize: fontSize.badge, color: colors.textMuted, marginTop: 1 }}>
-                                    Receive offers, tips, and updates
-                                </Text>
-                            </View>
-                        </View>
-                        <Controller
-                            control={control}
-                            name="is_receiving_promotional_email"
-                            render={({ field: { value, onChange } }) => (
-                                <Switch
-                                    value={value}
-                                    onValueChange={onChange}
-                                    trackColor={{ false: colors.surfaceBorder, true: colors.primaryMuted }}
-                                    thumbColor={value ? colors.primary : colors.textDisabled}
-                                />
-                            )}
-                        />
-                    </View>
+                    />
 
                     {/* ── Save Button ──────────────────────────────── */}
                     <TouchableOpacity

@@ -37,6 +37,15 @@ import type { GalleryItem } from '@/types/trainerTypes';
 const SLIDE = 40;
 const DUR = 350;
 
+function getMissingPersonalFields(user: User | null): string[] {
+    if (!user) return [];
+    const missing: string[] = [];
+    if (!user.first_name) missing.push('First Name');
+    if (!user.last_name) missing.push('Last Name');
+    if (!user.dob) missing.push('Date of Birth');
+    return missing;
+}
+
 function getVerificationBannerTitle(status: string): string {
     if (status === 'reverification_rejected') return 'Verification Rejected';
     if (status === 're_verification_required') return 'Re-verification Required';
@@ -74,6 +83,7 @@ export default function TrainerProfile() {
     );
 
     const [user, setUser] = useState<User | null>(null);
+    const [profileImageError, setProfileImageError] = useState(false);
     const [gallery, setGallery] = useState<GalleryItem[]>([]);
 
     const galleryGroups = useMemo(() => {
@@ -126,6 +136,7 @@ export default function TrainerProfile() {
         setGalleryVersion(Date.now());
         const [profile, galleryItems] = await Promise.all([getProfile(), trainerService.getGallery()]);
         setUser(profile);
+        setProfileImageError(false);
         setGallery(galleryItems);
     }, [getProfile]);
 
@@ -288,7 +299,7 @@ export default function TrainerProfile() {
                         {/* Avatar + Info */}
                         <View className="flex-row items-center">
                             <View style={{ position: 'relative' }}>
-                                {user?.profile_image ? (
+                                {user?.profile_image && !profileImageError ? (
                                     <TouchableOpacity
                                         activeOpacity={0.85}
                                         onPress={() => openViewer(resolveImageUrl(user.profile_image) ?? '', false)}
@@ -300,6 +311,7 @@ export default function TrainerProfile() {
                                                 height: 72,
                                                 borderRadius: radius.card,
                                             }}
+                                            onError={() => setProfileImageError(true)}
                                         />
                                     </TouchableOpacity>
                                 ) : (
@@ -352,6 +364,9 @@ export default function TrainerProfile() {
 
                             <View style={{ flex: 1, marginLeft: 16 }}>
                                 <Text className="text-lead font-bold text-foreground">{displayName}</Text>
+                                {user?.username && (
+                                    <Text className="text-xl font-bold text-black">{`${user.username}`}</Text>
+                                )}
                                 <Text className="text-xs text-foreground-5 mt-0.5">{displayEmail}</Text>
                                 {user?.is_email_verified && (
                                     <View
@@ -512,6 +527,45 @@ export default function TrainerProfile() {
                                 >
                                     {getVerificationBannerBody(user.verification_status)}
                                 </Text>
+                            </View>
+                        </Animated.View>
+                    )}
+
+                    {/* ── Missing Personal Fields Banner ───────────────── */}
+                    {getMissingPersonalFields(user).length > 0 && (
+                        <Animated.View
+                            style={[
+                                {
+                                    flexDirection: 'row',
+                                    alignItems: 'flex-start',
+                                    gap: 10,
+                                    marginTop: 12,
+                                    padding: 14,
+                                    borderRadius: radius.card,
+                                    backgroundColor: colors.actionBg,
+                                    borderWidth: 1,
+                                    borderColor: colors.action,
+                                },
+                                cardStyle,
+                            ]}
+                        >
+                            <Ionicons name="information-circle-outline" size={18} color={colors.action} />
+                            <View style={{ flex: 1, gap: 4 }}>
+                                <Text style={{ fontSize: fontSize.tag, fontWeight: '700', color: colors.action }}>
+                                    Profile is not 100% complete
+                                </Text>
+                                <Text style={{ fontSize: fontSize.caption, color: colors.action, lineHeight: 18, opacity: 0.85 }}>
+                                    {`Fill in the following to reach 100% and earn the Verified Trainer tag:\n• ${getMissingPersonalFields(user).join('\n• ')}`}
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={() => router.push('/(tabs)/trainer/profile/editProfile' as never)}
+                                    activeOpacity={0.75}
+                                    style={{ alignSelf: 'flex-start', marginTop: 4 }}
+                                >
+                                    <Text style={{ fontSize: fontSize.caption, fontWeight: '700', color: colors.action, textDecorationLine: 'underline' }}>
+                                        Go to Edit Profile
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
                         </Animated.View>
                     )}

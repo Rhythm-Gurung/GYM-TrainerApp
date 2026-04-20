@@ -56,6 +56,7 @@ export default function EditProfile() {
 
     const { control, handleSubmit, formState: { errors } } = useForm<EditProfileForm>({
         defaultValues: {
+            username: user?.username ?? '',
             first_name: user?.first_name ?? '',
             last_name: user?.last_name ?? '',
             dob: user?.dob ?? '',
@@ -120,6 +121,7 @@ export default function EditProfile() {
             const firstName = data.first_name.trim();
             const lastName = data.last_name.trim();
             await trainerService.patchProfileDetails({
+                username: data.username.trim(),
                 first_name: firstName,
                 last_name: lastName,
                 dob: data.dob.trim() || undefined,
@@ -179,6 +181,52 @@ export default function EditProfile() {
                     {/* ── Personal Information ─────────────────────────── */}
                     <SectionLabel icon="person-outline" title="Personal Information" />
 
+                    {(!user?.first_name || !user?.last_name || !user?.dob) && (
+                        <View
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'flex-start',
+                                gap: 10,
+                                marginBottom: 20,
+                                padding: 12,
+                                borderRadius: radius.md,
+                                backgroundColor: colors.actionBg,
+                                borderWidth: 1,
+                                borderColor: colors.action,
+                            }}
+                        >
+                            <Ionicons name="information-circle-outline" size={16} color={colors.action} />
+                            <Text style={{ flex: 1, fontSize: fontSize.caption, color: colors.action, lineHeight: 18 }}>
+                                <Text style={{ fontWeight: '700' }}>+10% profile completion: </Text>
+                                {[
+                                    !user?.first_name && 'First Name',
+                                    !user?.last_name && 'Last Name',
+                                    !user?.dob && 'Date of Birth',
+                                ].filter(Boolean).join(', ')}
+                                {[!user?.first_name, !user?.last_name, !user?.dob].filter(Boolean).length === 1
+                                    ? ' is missing.'
+                                    : ' are missing.'}
+                                {' Filling these in is required to reach 100% and earn the Verified Trainer tag.'}
+                            </Text>
+                        </View>
+                    )}
+
+                    <InputField
+                        control={control}
+                        name="username"
+                        label="Username"
+                        leftIcon="at-outline"
+                        placeholder="e.g. john_trainer"
+                        error={errors.username?.message}
+                        autoCapitalize="none"
+                        rules={{
+                            required: 'Username is required',
+                            minLength: { value: 3, message: 'Username must be at least 3 characters' },
+                            maxLength: { value: 30, message: 'Username cannot exceed 30 characters' },
+                            pattern: { value: /^[a-zA-Z0-9_]+$/, message: 'Only letters, numbers, and underscores allowed' },
+                        }}
+                    />
+
                     <InputField
                         control={control}
                         name="first_name"
@@ -187,6 +235,11 @@ export default function EditProfile() {
                         placeholder="First Name"
                         error={errors.first_name?.message}
                         autoCapitalize="words"
+                        rules={{
+                            minLength: { value: 2, message: 'First name must be at least 2 characters' },
+                            maxLength: { value: 50, message: 'First name cannot exceed 50 characters' },
+                            pattern: { value: /^[a-zA-Z\s'-]+$/, message: 'First name can only contain letters' },
+                        }}
                     />
 
                     <InputField
@@ -197,6 +250,11 @@ export default function EditProfile() {
                         placeholder="Last Name"
                         error={errors.last_name?.message}
                         autoCapitalize="words"
+                        rules={{
+                            minLength: { value: 2, message: 'Last name must be at least 2 characters' },
+                            maxLength: { value: 50, message: 'Last name cannot exceed 50 characters' },
+                            pattern: { value: /^[a-zA-Z\s'-]+$/, message: 'Last name can only contain letters' },
+                        }}
                     />
 
                     <InputField
@@ -206,6 +264,19 @@ export default function EditProfile() {
                         leftIcon="calendar-outline"
                         placeholder="YYYY-MM-DD"
                         error={errors.dob?.message}
+                        rules={{
+                            validate: (val) => {
+                                if (!val) return true;
+                                if (!/^\d{4}-\d{2}-\d{2}$/.test(val)) return 'Use format YYYY-MM-DD';
+                                const date = new Date(val);
+                                if (Number.isNaN(date.getTime())) return 'Invalid date';
+                                if (date > new Date()) return 'Date of birth cannot be in the future';
+                                const minDate = new Date();
+                                minDate.setFullYear(minDate.getFullYear() - 100);
+                                if (date < minDate) return 'Enter a valid date of birth';
+                                return true;
+                            },
+                        }}
                     />
 
                     <InputField
@@ -229,6 +300,9 @@ export default function EditProfile() {
                         textAlignVertical="top"
                         style={{ minHeight: 88, paddingTop: 8 }}
                         error={errors.bio?.message}
+                        rules={{
+                            maxLength: { value: 500, message: 'Bio cannot exceed 500 characters' },
+                        }}
                     />
 
                     <InputField
@@ -238,6 +312,9 @@ export default function EditProfile() {
                         leftIcon="location-outline"
                         placeholder="e.g. Kathmandu, Nepal"
                         error={errors.location?.message}
+                        rules={{
+                            maxLength: { value: 100, message: 'Location cannot exceed 100 characters' },
+                        }}
                     />
 
                     {/* ── Professional Details ─────────────────────────── */}
@@ -251,6 +328,16 @@ export default function EditProfile() {
                         placeholder="e.g. 5"
                         keyboardType="numeric"
                         error={errors.years_of_experience?.message}
+                        rules={{
+                            required: 'Years of experience is required',
+                            validate: (val) => {
+                                const n = Number(val);
+                                if (Number.isNaN(n) || !Number.isFinite(n)) return 'Enter a valid number';
+                                if (n < 0) return 'Cannot be negative';
+                                if (n > 60) return 'Enter a realistic value (0–60)';
+                                return true;
+                            },
+                        }}
                     />
 
                     <InputField
@@ -261,6 +348,15 @@ export default function EditProfile() {
                         placeholder="e.g. 1500"
                         keyboardType="numeric"
                         error={errors.pricing_per_session?.message}
+                        rules={{
+                            required: 'Pricing per session is required',
+                            validate: (val) => {
+                                const n = Number(val);
+                                if (Number.isNaN(n) || !Number.isFinite(n)) return 'Enter a valid amount';
+                                if (n <= 0) return 'Price must be greater than 0';
+                                return true;
+                            },
+                        }}
                     />
 
                     {/* ── Session Type ─────────────────────────────────── */}

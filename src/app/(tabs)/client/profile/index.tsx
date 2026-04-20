@@ -52,7 +52,7 @@ export default function ClientProfile() {
     const tabBarHeight = useTabBarHeight();
     const insets = useSafeAreaInsets();
     const { authState, getProfile, logout } = useAuth();
-    const [userData, setUserData] = useState<User | null>(authState.user);
+    const userData = authState.user;
     const [isLoading, setIsLoading] = useState(false);
     const [isRefreshing, setIsRefreshing] = useState(false);
     const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -94,11 +94,10 @@ export default function ClientProfile() {
     const fetchProfile = useCallback(async () => {
         try {
             setIsLoading(true);
-            const [profile, favs] = await Promise.all([
+            const [, favs] = await Promise.all([
                 getProfile(),
                 clientService.getFavourites(),
             ]);
-            setUserData(profile);
             setFavourites(favs);
             setImageKey((k) => k + 1);
         } catch {
@@ -113,14 +112,6 @@ export default function ClientProfile() {
             fetchProfile();
         }
     }, [userData, fetchProfile]);
-
-    // Sync userData whenever authState.user is updated (e.g. after image removal in editProfile)
-    useEffect(() => {
-        if (authState.user) {
-            setUserData(authState.user);
-            setImageKey((k) => k + 1);
-        }
-    }, [authState.user]);
 
     const handleRefresh = useCallback(async () => {
         setIsRefreshing(true);

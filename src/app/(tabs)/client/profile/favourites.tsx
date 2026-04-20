@@ -41,6 +41,7 @@ export default function Favourites() {
     }, []);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         fetchFavourites({ initial: true });
     }, [fetchFavourites]);
 

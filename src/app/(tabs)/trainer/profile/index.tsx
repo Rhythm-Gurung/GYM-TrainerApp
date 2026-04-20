@@ -105,8 +105,8 @@ export default function TrainerProfile() {
     }, [gallery]);
     const [isLoading, setIsLoading] = useState(true);
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [idProofVersion, setIdProofVersion] = useState(Date.now());
-    const [galleryVersion, setGalleryVersion] = useState(Date.now());
+    const [idProofVersion, setIdProofVersion] = useState(() => Date.now());
+    const [galleryVersion, setGalleryVersion] = useState(() => Date.now());
     const [isUpdatingProfileImage, setIsUpdatingProfileImage] = useState(false);
     const [isUpdatingIdProof, setIsUpdatingIdProof] = useState(false);
 

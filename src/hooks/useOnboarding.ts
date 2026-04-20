@@ -24,9 +24,13 @@ export const useOnboarding = () => {
         }
     };
 
-    // Check onboarding status on hook initialization
     useEffect(() => {
-        checkOnboardingStatus();
+        let cancelled = false;
+        AsyncStorage.getItem(ONBOARDING_KEY)
+            .then((value) => { if (!cancelled) setIsOnboardingCompleted(value === 'true'); })
+            .catch(() => { if (!cancelled) setIsOnboardingCompleted(false); })
+            .finally(() => { if (!cancelled) setIsLoading(false); });
+        return () => { cancelled = true; };
     }, []);
 
     //  * Mark onboarding as completed and persist to AsyncStorage

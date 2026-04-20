@@ -1,7 +1,7 @@
 import { apiClient } from '@/api/client';
 import { API_CONFIG } from '@/constants/config';
 import type { ClientProfileEditForm, User } from '@/types/authTypes';
-import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, BookingStatus, BulkPaymentInitiateRequest, BulkPaymentInitiateResponse, BulkPaymentStatusResponse, PaymentInitiateResponse, PaymentStatusResponse, SessionRequest, SessionRequestAction, SessionRequestStatus, SessionRequestType } from '@/types/clientTypes';
+import type { ApiAvailableSlotsResponse, ApiCertification, ApiGalleryItem, ApiReview, ApiReviewsResponse, ApiTrainer, Booking, BookingSessionMode, BookingStatus, BulkPaymentInitiateRequest, BulkPaymentInitiateResponse, BulkPaymentStatusResponse, PaymentInitiateResponse, PaymentStatusResponse, SessionRequest, SessionRequestAction, SessionRequestStatus, SessionRequestType } from '@/types/clientTypes';
 import { mapApiBooking } from '@/types/clientTypes';
 
 export interface BookingStats {
@@ -161,11 +161,12 @@ export const clientService = {
      * Backend validates: booking exists, user is client, status is completed, no duplicate.
      * Returns 400 (validation), 403 (not client), 404 (booking not found), 409 (duplicate).
      */
-    postReview: async (id: string, bookingId: string, rating: number, comment: string): Promise<void> => {
-        await apiClient.post(
+    postReview: async (id: string, bookingId: string, rating: number, comment: string): Promise<ApiReview> => {
+        const { data } = await apiClient.post(
             `${API_CONFIG.ENDPOINTS.CLIENT.TRAINER_REVIEWS}${id}/reviews/`,
             { booking_id: Number(bookingId), rating, comment },
         );
+        return data?.data ?? data;
     },
 
     /**

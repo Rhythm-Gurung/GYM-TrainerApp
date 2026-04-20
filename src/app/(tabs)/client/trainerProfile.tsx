@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -185,19 +185,17 @@ export default function TrainerProfile() {
     const closeCertViewer = useCallback(() => setCertViewerUri(null), []);
 
     // ── Favourite ──────────────────────────────────────────────────────────
-    const [isFavorited, setIsFavorited] = useState<boolean | null>(null);
+    // Track per-trainer optimistic favourite state so navigating to a new trainer resets automatically.
+    const [favMap, setFavMap] = useState<Record<string, boolean>>({});
+    const isFavorited = favMap[id] ?? null;
     const currentFavoriteState = isFavorited !== null ? isFavorited : (apiTrainer?.is_favourited ?? false);
-
-    useEffect(() => {
-        setIsFavorited(null);
-    }, [id]);
 
     const { mutate: toggleFav } = useApiMutation(
         () => clientService.toggleFavourite(id),
         {
             onSuccess: (result) => {
                 if (result && typeof result.is_favourited === 'boolean') {
-                    setIsFavorited(result.is_favourited);
+                    setFavMap((prev) => ({ ...prev, [id]: result.is_favourited }));
                 }
             },
             showErrorToast: true,

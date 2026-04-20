@@ -69,8 +69,35 @@ export default function ClientBookings() {
     const [reviewModalVisible, setReviewModalVisible] = useState(false);
     const [selectedBookingForReview, setSelectedBookingForReview] = useState<Booking | null>(null);
 
-    // Track reviews by booking ID (booking_id -> review_id)
+    // Track reviews by booking ID (booking_id -> review_id), seeded from server on load
     const [reviewsByBooking, setReviewsByBooking] = useState<Record<string, string>>({});
+
+    // Seed reviewsByBooking from server whenever bookings load/refresh
+    useEffect(() => {
+        if (!bookings) return;
+        const completedBookings = bookings.filter((b) => b.status === 'completed');
+        if (completedBookings.length === 0) return;
+
+        const completedBookingIdSet = new Set(completedBookings.map((b) => b.id));
+        const trainerIds = [...new Set(completedBookings.map((b) => b.trainerId))];
+
+        Promise.all(
+            trainerIds.map((trainerId) =>
+                clientService.getTrainerReviews(trainerId)
+                    .then((res) => res.data)
+                    .catch(() => []),
+            ),
+        ).then((allReviews) => {
+            const mapped: Record<string, string> = {};
+            allReviews.flat().forEach((review) => {
+                const bid = review.booking_id ? String(review.booking_id) : null;
+                if (bid && completedBookingIdSet.has(bid)) {
+                    mapped[bid] = String(review.id);
+                }
+            });
+            setReviewsByBooking(mapped);
+        }).catch(() => { });
+    }, [bookings]);
 
     // Optimistic status overrides keyed by booking id
     const [statusOverrides, setStatusOverrides] = useState<Record<string, Booking['status']>>({});
@@ -243,10 +270,9 @@ export default function ClientBookings() {
 
     const { mutateAsync: submitReview } = useApiMutation(
         async ({ trainerId, bookingId: reviewBookingId, rating, comment }: { trainerId: string; bookingId: string; rating: number; comment: string }) => {
-            const response = await clientService.postReview(trainerId, reviewBookingId, rating, comment);
-            // After successful review submission, mark this booking as reviewed
-            setReviewsByBooking((prev) => ({ ...prev, [reviewBookingId]: 'submitted' }));
-            return response;
+            const review = await clientService.postReview(trainerId, reviewBookingId, rating, comment);
+            setReviewsByBooking((prev) => ({ ...prev, [reviewBookingId]: String(review.id) }));
+            return review;
         },
         {
             onSuccess: () => showSuccessToast('Thank you for your review!'),

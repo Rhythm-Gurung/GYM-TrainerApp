@@ -45,9 +45,11 @@ lint_output.txt
 
 # local docs (keep README.md and .github templates)
 docs.md
-
+*.md
 # typescript
 *.tsbuildinfo
+
+*.bat
 
 app-example
 

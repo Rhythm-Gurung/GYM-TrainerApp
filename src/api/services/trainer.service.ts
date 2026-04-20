@@ -72,9 +72,13 @@ function mapApiTrainerSession(item: unknown): TrainerSession {
 
   const clientAvatar =
     pickString(clientObj?.profile_image_url)
+    || pickString(clientObj?.profile_image)
     || pickString(clientObj?.avatar_url)
+    || pickString(clientObj?.avatar)
     || pickString(clientObj?.image_url)
     || pickString(row.client_avatar_url)
+    || pickString(row.client_profile_image_url)
+    || pickString(row.client_profile_image)
     || pickString(row.clientAvatar)
     || '';
 
@@ -306,6 +310,7 @@ export const trainerService = {
    * Sends JSON – does not update profile image or documents.
    */
   patchProfileDetails: async (input: {
+    username: string;
     first_name: string;
     last_name: string;
     dob?: string;

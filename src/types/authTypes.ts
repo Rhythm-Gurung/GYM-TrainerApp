@@ -138,9 +138,8 @@ export interface UpdateProfileInput {
 
 /** Fields the client can edit via PATCH /api/system/client/profile/ */
 export interface ClientProfileEditForm {
-  first_name: string;
-  last_name: string;
+  username: string;
+  full_name: string;
   dob: string;
   contact_no: string;
-  is_receiving_promotional_email: boolean;
 }

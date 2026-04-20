@@ -56,10 +56,15 @@ apiClient.interceptors.request.use(
         }
 
         // Ensure Content-Type is set for POST/PUT/PATCH requests
-        // Skip FormData — let axios/platform set the correct multipart boundary automatically
-        if (config.data && config.headers && !(config.data instanceof FormData)) {
-            // eslint-disable-next-line no-param-reassign
-            config.headers['Content-Type'] = 'application/json';
+        if (config.data && config.headers) {
+            if (config.data instanceof FormData) {
+                // React Native XHR will append the correct boundary automatically
+                // eslint-disable-next-line no-param-reassign
+                config.headers['Content-Type'] = 'multipart/form-data';
+            } else {
+                // eslint-disable-next-line no-param-reassign
+                config.headers['Content-Type'] = 'application/json';
+            }
         }
 
         return config;

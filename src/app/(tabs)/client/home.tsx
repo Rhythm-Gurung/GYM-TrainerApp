@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
+    RefreshControl,
     ScrollView,
     Text,
     TouchableOpacity,
@@ -48,19 +49,21 @@ export default function ClientHome() {
     const { authState } = useAuth();
     const authHeader = { Authorization: `Bearer ${authState.token ?? ''}` };
 
-    const { data: apiTrainers } = useApiQuery(
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const { data: apiTrainers, refetch: refetchTrainers } = useApiQuery(
         'client:trainers',
         () => clientService.getTrainers(),
         { staleTime: 2 * 60 * 1000 },
     );
 
-    const { data: apiFavourites } = useApiQuery(
+    const { data: apiFavourites, refetch: refetchFavourites } = useApiQuery(
         'client:favourites',
         () => clientService.getFavourites(),
         { staleTime: 60 * 1000 },
     );
 
-    const { data: bookingStats } = useApiQuery(
+    const { data: bookingStats, refetch: refetchBookingStats } = useApiQuery(
         'bookings:stats',
         () => clientService.getBookingsStats(),
         { staleTime: 60 * 1000, showErrorToast: false },
@@ -150,6 +153,17 @@ export default function ClientHome() {
         transform: [{ translateY: recentY.value }],
     }));
 
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        await Promise.all([
+            refetchTrainers(),
+            refetchFavourites(),
+            refetchBookingStats(),
+            refetchNotificationStats(),
+        ]);
+        setIsRefreshing(false);
+    }, [refetchTrainers, refetchFavourites, refetchBookingStats, refetchNotificationStats]);
+
     const fabBottom = tabBarHeight + 16;
 
     const handleOpenChat = useCallback(() => {
@@ -161,6 +175,14 @@ export default function ClientHome() {
             <ScrollView
                 contentContainerStyle={{ flexGrow: 1, paddingBottom: tabBarHeight + 16 }}
                 showsVerticalScrollIndicator={false}
+                refreshControl={(
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        tintColor={colors.primary}
+                        colors={[colors.primary]}
+                    />
+                )}
             >
                 {/* Hero / Header */}
                 <HeroGradient gradient={gradientColors.primary} paddingTopExtra={20} paddingBottom={36}>
@@ -349,7 +371,7 @@ export default function ClientHome() {
                                                     borderColor: colors.primaryBorderSm,
                                                 }}
                                                 contentFit="cover"
-                                                cachePolicy="memory-disk"
+                                                cachePolicy="none"
                                             />
                                         ) : (
                                             <View

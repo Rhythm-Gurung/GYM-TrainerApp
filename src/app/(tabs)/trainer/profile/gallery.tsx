@@ -49,7 +49,7 @@ export default function GalleryScreen() {
     const [isUploading, setIsUploading] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
-    const [version, setVersion] = useState(Date.now());
+    const [version, setVersion] = useState(() => Date.now());
     const [pendingAssets, setPendingAssets] = useState<ImagePicker.ImagePickerAsset[]>([]);
     const [captionInput, setCaptionInput] = useState('');
 

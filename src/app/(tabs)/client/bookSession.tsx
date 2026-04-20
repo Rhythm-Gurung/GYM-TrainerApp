@@ -335,31 +335,33 @@ export default function BookSession() {
 
     // Keep slot selections consistent with selected dates and mode.
     useEffect(() => {
-        if (selectedDates.size === 0) {
-            setActiveSlotDate(null);
-            setSelectedSlot(null);
-            setSlotPerDate(new Map());
-            return;
-        }
+        Promise.resolve().then(() => {
+            if (selectedDates.size === 0) {
+                setActiveSlotDate(null);
+                setSelectedSlot(null);
+                setSlotPerDate(new Map());
+                return;
+            }
 
-        setSlotPerDate((prev) =>
-            new Map(
-                Array.from(prev.entries()).filter(([date]) => selectedDates.has(date)),
-            )
-        );
+            setSlotPerDate((prev) =>
+                new Map(
+                    Array.from(prev.entries()).filter(([date]) => selectedDates.has(date)),
+                )
+            );
 
-        if (selectedDates.size > PER_DATE_LIMIT) {
-            // Global-time mode. Per-date selections no longer apply.
-            setSlotPerDate(new Map());
-        } else {
-            // Per-date mode. Global selection should not apply.
-            setSelectedSlot(null);
-        }
+            if (selectedDates.size > PER_DATE_LIMIT) {
+                // Global-time mode. Per-date selections no longer apply.
+                setSlotPerDate(new Map());
+            } else {
+                // Per-date mode. Global selection should not apply.
+                setSelectedSlot(null);
+            }
 
-        if (activeSlotDate && !selectedDates.has(activeSlotDate)) {
-            const first = Array.from(selectedDates).sort()[0] ?? null;
-            setActiveSlotDate(first);
-        }
+            if (activeSlotDate && !selectedDates.has(activeSlotDate)) {
+                const first = Array.from(selectedDates).sort()[0] ?? null;
+                setActiveSlotDate(first);
+            }
+        }).catch(() => { });
     }, [activeSlotDate, selectedDates]);
 
     const handleSlotPress = useCallback((slot: ApiAvailableSlot) => {

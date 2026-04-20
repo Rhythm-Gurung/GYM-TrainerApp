@@ -277,20 +277,6 @@ export default function TrainerPendingApprovalPage() {
             </LinearGradient>
           </TouchableOpacity>
 
-          {/* Support note */}
-          <Text
-            style={{
-              fontSize: fontSize.caption,
-              color: colors.textSubtle,
-              textAlign: 'center',
-              marginTop: 16,
-              lineHeight: 18,
-            }}
-          >
-            {'Need help? '}
-            <Text style={{ color: colors.trainerPrimary, fontWeight: '600' }}>Contact support</Text>
-          </Text>
-
         </View>
       </ScrollView>
     </View>

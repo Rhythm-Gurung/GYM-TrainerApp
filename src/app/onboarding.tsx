@@ -17,8 +17,8 @@ import { heightPercentageToDP as hp, widthPercentageToDP as wp } from 'react-nat
 import { SafeAreaView } from "react-native-safe-area-context";
 // import iconImage from '../../assets/images/icon.webp';
 // import logoImage from '../../assets/images/logo.webp';
-import logoImage from '../../assets/images/SETuFull.png';
 import iconImage from '../../assets/images/SETu.png';
+import logoImage from '../../assets/images/SETuFull.png';
 
 
 

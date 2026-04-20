@@ -220,9 +220,11 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
     const wsRef = useRef<WebSocket | null>(null);
     const retriedTokenRef = useRef(false);
     const mountedRef = useRef(true);
+    const isSendingRef = useRef(false);
     const uiStateRef = useRef<ChatUiState>('CONNECTING');
     const currentUserIdRef = useRef('');
     const flatListRef = useRef<FlatList<UiMessage>>(null);
+    const connectSocketRef = useRef<() => Promise<void>>(async () => { });
     // Tracks whether this screen is currently visible. In Expo Router tab
     // navigation, tab screens stay MOUNTED in the background after navigating
     // away, so the chat WebSocket keeps receiving messages. We must NOT call
@@ -270,7 +272,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
     }, []);
 
     useEffect(() => {
-        applyPartnerName(normalizedInitialPartnerName);
+        Promise.resolve().then(() => applyPartnerName(normalizedInitialPartnerName)).catch(() => { });
     }, [applyPartnerName, normalizedInitialPartnerName]);
 
     const closeSocket = useCallback(() => {
@@ -323,6 +325,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
 
         socket.onmessage = async (event) => {
             if (!mountedRef.current) return;
+            if (wsRef.current !== socket) return;
 
             let payload: unknown;
             try {
@@ -421,7 +424,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
                 retriedTokenRef.current = true;
                 const refreshed = await bookingChatService.refreshAccessToken();
                 if (refreshed) {
-                    await connectSocket();
+                    await connectSocketRef.current();
                     return;
                 }
                 setUiStateSafe('DISABLED');
@@ -434,6 +437,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
             }
         };
     }, [appendIncomingMessage, applyPartnerName, applyPartnerNameFromChatMessages, bookingId, handleChatDisabled, markRead, setUiStateSafe]);
+    connectSocketRef.current = connectSocket;
 
     const initialize = useCallback(async () => {
         if (!bookingId) {
@@ -484,7 +488,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
 
     useEffect(() => {
         mountedRef.current = true;
-        initialize().catch(() => { });
+        Promise.resolve().then(() => initialize()).catch(() => { });
 
         return () => {
             mountedRef.current = false;
@@ -504,11 +508,13 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
     );
 
     const handleSend = useCallback(() => {
+        if (isSendingRef.current) return;
         const payload = draft.trim();
         if (!payload || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN || uiState !== 'ACTIVE') {
             return;
         }
 
+        isSendingRef.current = true;
         const optimisticMsg: UiMessage = {
             id: `optimistic-${Date.now()}`,
             senderId: String(currentUserIdRef.current),
@@ -525,6 +531,8 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
         } catch {
             setMessages((prev) => prev.filter((m) => m.id !== optimisticMsg.id));
             showErrorToast('Message failed to send.');
+        } finally {
+            isSendingRef.current = false;
         }
     }, [draft, uiState]);
 

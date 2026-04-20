@@ -224,6 +224,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
     const uiStateRef = useRef<ChatUiState>('CONNECTING');
     const currentUserIdRef = useRef('');
     const flatListRef = useRef<FlatList<UiMessage>>(null);
+    const connectSocketRef = useRef<() => Promise<void>>(async () => { });
     // Tracks whether this screen is currently visible. In Expo Router tab
     // navigation, tab screens stay MOUNTED in the background after navigating
     // away, so the chat WebSocket keeps receiving messages. We must NOT call
@@ -271,7 +272,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
     }, []);
 
     useEffect(() => {
-        applyPartnerName(normalizedInitialPartnerName);
+        Promise.resolve().then(() => applyPartnerName(normalizedInitialPartnerName)).catch(() => { });
     }, [applyPartnerName, normalizedInitialPartnerName]);
 
     const closeSocket = useCallback(() => {
@@ -423,7 +424,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
                 retriedTokenRef.current = true;
                 const refreshed = await bookingChatService.refreshAccessToken();
                 if (refreshed) {
-                    await connectSocket();
+                    await connectSocketRef.current();
                     return;
                 }
                 setUiStateSafe('DISABLED');
@@ -436,6 +437,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
             }
         };
     }, [appendIncomingMessage, applyPartnerName, applyPartnerNameFromChatMessages, bookingId, handleChatDisabled, markRead, setUiStateSafe]);
+    connectSocketRef.current = connectSocket;
 
     const initialize = useCallback(async () => {
         if (!bookingId) {
@@ -486,7 +488,7 @@ export default function BookingChatRoomScreen({ chatRole, bookingId, initialPart
 
     useEffect(() => {
         mountedRef.current = true;
-        initialize().catch(() => { });
+        Promise.resolve().then(() => initialize()).catch(() => { });
 
         return () => {
             mountedRef.current = false;

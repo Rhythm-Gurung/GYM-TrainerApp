@@ -116,7 +116,7 @@ export function useApiQuery<TData>(
         mountedRef.current = true;
 
         if (enabled && (options?.refetchOnMount !== false || state.data === null)) {
-            fetchData();
+            Promise.resolve().then(() => fetchData()).catch(() => { });
         }
 
         return () => {

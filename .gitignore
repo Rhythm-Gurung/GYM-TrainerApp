@@ -49,6 +49,8 @@ docs.md
 # typescript
 *.tsbuildinfo
 
+*.bat
+
 app-example
 
 # generated native folders

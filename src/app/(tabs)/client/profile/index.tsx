@@ -109,7 +109,7 @@ export default function ClientProfile() {
 
     useEffect(() => {
         if (!userData) {
-            fetchProfile();
+            Promise.resolve().then(() => fetchProfile()).catch(() => { });
         }
     }, [userData, fetchProfile]);
 

@@ -10,20 +10,6 @@ export const useOnboarding = () => {
     const [isLoading, setIsLoading] = useState(true);
 
 
-    // Check if user has completed onboarding by reading from AsyncStorage
-    const checkOnboardingStatus = async () => {
-        try {
-            const value = await AsyncStorage.getItem(ONBOARDING_KEY);
-            const completed = value === 'true';
-            setIsOnboardingCompleted(completed);
-        } catch (error) {
-            console.error('Error reading onboarding status:', error);
-            setIsOnboardingCompleted(false);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
     useEffect(() => {
         let cancelled = false;
         AsyncStorage.getItem(ONBOARDING_KEY)
